@@ -285,3 +285,4 @@ machine (pas versionné), utilise la directive `include` de git :
 
 Et mets tout ce qui est spécifique à la machine dans `~/.gitconfig.local`
 (qui n'est pas versionné). Git le charge en plus.
+# test mar. 21 avr. 2026 11:17:16
