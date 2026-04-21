@@ -6,7 +6,7 @@
 # ============================================================
 
 # Dossier racine du repo dotfiles (utilisé par git-dsync)
-export DOTFILES_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
+export DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.projects/dotfiles}"
 
 # Scripts git-* externes sur le PATH
 case ":$PATH:" in
