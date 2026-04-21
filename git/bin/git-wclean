@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+# git-wclean [--dry-run] [--base <branch>]
+#   Nettoie les worktrees :
+#     1) prune les worktrees invalides (dossier supprimé)
+#     2) supprime les worktrees dont la branche est mergée dans <base>
+#        (défaut : origin/HEAD, puis develop en fallback)
+#     3) supprime localement + distant les branches mergées associées
+#
+#   Par sécurité :
+#     - jamais la branche courante
+#     - jamais main / develop / release/*
+#     - demande confirmation par défaut (--yes pour sauter)
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+usage() {
+    cat >&2 <<EOF
+Usage : git wclean [--dry-run] [--yes] [--base <branch>] [--delete-branches]
+
+Options :
+  --dry-run           N'effectue rien, affiche seulement ce qui serait fait.
+  --yes               Ne pose pas de question (mode non-interactif).
+  --base <branch>     Base de comparaison pour "mergé" (défaut: origin/HEAD
+                      puis develop/main).
+  --delete-branches   Supprime aussi les branches locales et distantes
+                      associées aux worktrees retirés.
+EOF
+    exit 1
+}
+
+DRY_RUN=false
+YES=false
+DELETE_BRANCHES=false
+BASE=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --dry-run)         DRY_RUN=true ;;
+        --yes|-y)          YES=true ;;
+        --base)            shift; BASE="$1" ;;
+        --delete-branches) DELETE_BRANCHES=true ;;
+        -h|--help)         usage ;;
+        *)                 die "Option inconnue : $1" ;;
+    esac
+    shift
+done
+
+require_git_repo
+
+# Base : origin/HEAD si dispo, sinon develop, sinon main
+if [ -z "$BASE" ]; then
+    BASE=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)
+    if [ -z "$BASE" ]; then
+        for cand in origin/develop origin/main origin/master; do
+            git show-ref --verify --quiet "refs/remotes/$cand" && { BASE="$cand"; break; }
+        done
+    fi
+fi
+[ -z "$BASE" ] && die "Impossible de déterminer la branche de base."
+info "Base de comparaison : $BASE"
+
+git fetch --prune --quiet
+
+# Branches protégées (ne jamais supprimer)
+PROTECTED_RE='^(main|master|develop|develop-iac|main-iac|release-iac|release/.*|hotfix/.*)$'
+
+# Étape 1 : prune
+info "git worktree prune"
+$DRY_RUN || git worktree prune
+
+# Étape 2 : lister les worktrees + trouver ceux à supprimer
+CURRENT=$(git rev-parse --abbrev-ref HEAD)
+
+mapfile -t wt_lines < <(git worktree list --porcelain)
+declare -a wt_paths=() wt_branches=()
+p="" b=""
+flush() { [ -n "$p" ] && { wt_paths+=("$p"); wt_branches+=("$b"); }; p=""; b=""; }
+for line in "${wt_lines[@]}"; do
+    case "$line" in
+        worktree\ *) flush; p="${line#worktree }" ;;
+        branch\ *)   b="${line#branch }"; b="${b#refs/heads/}" ;;
+        detached)    b="(detached)" ;;
+        "")          flush ;;
+    esac
+done
+flush
+
+to_remove=()
+for i in "${!wt_paths[@]}"; do
+    wt="${wt_paths[$i]}"
+    br="${wt_branches[$i]}"
+
+    [ "$br" = "(detached)" ] && continue
+    [[ "$br" =~ $PROTECTED_RE ]] && continue
+    [ "$br" = "$CURRENT" ] && continue
+
+    if branch_is_merged "$br" "$BASE"; then
+        to_remove+=("$i")
+    fi
+done
+
+if [ "${#to_remove[@]}" -eq 0 ]; then
+    ok "Rien à nettoyer."
+    exit 0
+fi
+
+# Preview
+printf '\n%sWorktrees mergés dans %s :%s\n' "$C_BOLD" "$BASE" "$C_RESET"
+for i in "${to_remove[@]}"; do
+    printf '  %s%s%s   %s%s%s\n' "$C_YELLOW" "${wt_branches[$i]}" "$C_RESET" "$C_DIM" "${wt_paths[$i]}" "$C_RESET"
+done
+echo
+
+if $DRY_RUN; then
+    info "Dry-run : rien n'a été supprimé."
+    exit 0
+fi
+
+if ! $YES; then
+    confirm "Supprimer ces worktrees${DELETE_BRANCHES:+ ET leurs branches} ?" n || { warn "Annulé."; exit 0; }
+fi
+
+for i in "${to_remove[@]}"; do
+    br="${wt_branches[$i]}"
+    wt="${wt_paths[$i]}"
+
+    info "Suppression worktree : $wt"
+    git worktree remove --force "$wt" || warn "Échec remove $wt"
+
+    if $DELETE_BRANCHES; then
+        info "Suppression branche locale : $br"
+        git branch -D "$br" 2>/dev/null || warn "Échec suppression locale $br"
+        if git show-ref --verify --quiet "refs/remotes/origin/$br"; then
+            info "Suppression branche distante : origin/$br"
+            git push origin --delete "$br" || warn "Échec suppression distante $br"
+        fi
+    fi
+done
+
+ok "Cleanup terminé."

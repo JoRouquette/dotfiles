@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# git-c <message...>
+#   Commit avec un message. Si rien n'est staged, fait `git add --all` avant.
+
+set -euo pipefail
+
+[ $# -eq 0 ] && { echo "Usage : git c <message>" >&2; exit 1; }
+
+if ! git diff --cached --quiet; then
+    # quelque chose est staged → commit direct
+    git commit -m "$*"
+else
+    # rien staged → stage tout + commit
+    git add --all
+    git commit -m "$*"
+fi

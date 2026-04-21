@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# git-cleanup-all
+#   Supprime toutes les branches locales ET distantes mergées dans
+#   les bases protégées (develop, release/*, main, *-iac).
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+require_git_repo
+
+git fetch -p
+
+bases=(develop release main develop-iac release-iac main-iac)
+# Ajout dynamique des release/*
+while IFS= read -r rb; do
+    bases+=("$rb")
+done < <(git branch -r | grep 'origin/release/' | sed 's|origin/||')
+
+PROTECTED_RE='^(main|develop|develop-iac|release-iac|main-iac|release/.*)$'
+
+# --- Branches locales -----------------------------------------
+while IFS= read -r branch; do
+    [[ "$branch" =~ $PROTECTED_RE ]] && continue
+
+    merged=false
+    for base in "${bases[@]}"; do
+        if git show-ref --verify --quiet "refs/heads/$base" \
+           && git merge-base --is-ancestor "$branch" "$base" 2>/dev/null; then
+            merged=true; break
+        fi
+    done
+
+    if $merged && ! git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+        info "Suppression locale (mergée + orpheline) : $branch"
+        git branch -d "$branch" || warn "Impossible de supprimer $branch"
+    fi
+done < <(git branch --format='%(refname:short)')
+
+# --- Branches distantes ---------------------------------------
+while IFS= read -r remote_branch; do
+    [ "$remote_branch" = "HEAD" ] && continue
+    [[ "$remote_branch" =~ $PROTECTED_RE ]] && continue
+
+    merged=false
+    for base in "${bases[@]}"; do
+        if git show-ref --verify --quiet "refs/remotes/origin/$base" \
+           && git merge-base --is-ancestor "origin/$remote_branch" "origin/$base" 2>/dev/null; then
+            merged=true; break
+        fi
+    done
+
+    if $merged; then
+        info "Suppression distante (mergée) : $remote_branch"
+        git push origin --delete "$remote_branch" || warn "Échec suppression distante $remote_branch"
+    fi
+done < <(git branch -r | sed 's|origin/||' | grep -v '^HEAD$')
+
+ok "Cleanup-all terminé."

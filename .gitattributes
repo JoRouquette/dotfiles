@@ -1,0 +1,17 @@
+# Force LF sur tous les scripts shell et config
+# sinon CRLF casse `#!/usr/bin/env bash` et les scripts ne se lancent pas
+* text=auto eol=lf
+
+*.sh    text eol=lf
+*.bash  text eol=lf
+git-*   text eol=lf
+.gitconfig text eol=lf
+
+# PowerShell : CRLF natif Windows
+*.ps1   text eol=crlf
+*.psm1  text eol=crlf
+
+# Binaires
+*.png   binary
+*.jpg   binary
+*.ico   binary

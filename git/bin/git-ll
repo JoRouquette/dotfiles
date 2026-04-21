@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# git-ll <n>
+#   Log des <n> derniers commits avec le message complet (body),
+#   format lisible : hash cyan, date, auteur, puis le message.
+
+set -euo pipefail
+
+if [ $# -eq 0 ]; then
+    echo "Usage : git ll <number>" >&2
+    exit 1
+fi
+
+git log -n "$1" \
+    --pretty=format:'%C(yellow)%h%Creset %C(cyan)%ad%Creset %Cgreen%an%Creset%n%B' \
+    --date=short

@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# git-cpick <target_branch> <new_branch_name>
+#   Cherry-pick le dernier commit sur une nouvelle branche basée sur <target>.
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+if [ $# -ne 2 ]; then
+    echo "Usage : git cpick <target_branch> <new_branch_name>" >&2
+    exit 1
+fi
+
+TARGET="$1"
+NEW_BRANCH="$2"
+LAST_COMMIT=$(git rev-parse HEAD)
+
+require_git_repo
+
+git fetch origin "$TARGET"
+git checkout "$TARGET"
+git pull origin "$TARGET"
+
+if git show-ref --verify --quiet "refs/heads/$NEW_BRANCH"; then
+    info "La branche '$NEW_BRANCH' existe. Passage dessus."
+    git checkout "$NEW_BRANCH"
+else
+    git checkout -b "$NEW_BRANCH"
+fi
+
+if ! git cherry-pick "$LAST_COMMIT"; then
+    warn "Cherry-pick échoué. Abandon."
+    git cherry-pick --abort
+    exit 1
+fi
+
+ok "Commit $LAST_COMMIT cherry-pické sur $NEW_BRANCH (basé sur $TARGET)."

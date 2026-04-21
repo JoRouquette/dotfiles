@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# git-wstatus
+#   Affiche un résumé de l'état de chaque worktree :
+#     branche, path, ahead/behind vs upstream, fichiers modifiés.
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+require_git_repo
+
+# Liste
+mapfile -t lines < <(git worktree list --porcelain)
+
+declare -a paths=() branches=()
+p="" b=""
+flush() {
+    [ -z "$p" ] && return 0
+    paths+=("$p"); branches+=("$b"); p=""; b=""
+}
+for line in "${lines[@]}"; do
+    case "$line" in
+        worktree\ *)  flush; p="${line#worktree }" ;;
+        branch\ *)    b="${line#branch }"; b="${b#refs/heads/}" ;;
+        detached)     b="(detached)" ;;
+        "")           flush ;;
+    esac
+done
+flush
+
+# Header
+printf '%s%-28s %-10s %-10s %s%s\n' "$C_BOLD" "BRANCH" "AHEAD" "BEHIND" "STATUS" "$C_RESET"
+printf '%s%s%s\n' "$C_DIM" "───────────────────────────────────────────────────────────────────────" "$C_RESET"
+
+for i in "${!paths[@]}"; do
+    wt="${paths[$i]}"
+    br="${branches[$i]}"
+
+    # fetch léger (silencieux)
+    git -C "$wt" fetch --quiet --no-tags origin "$br" 2>/dev/null || true
+
+    ahead=0; behind=0
+    if [ "$br" != "(detached)" ] && upstream=$(git -C "$wt" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null); then
+        read -r ahead behind < <(git -C "$wt" rev-list --left-right --count "HEAD...$upstream" 2>/dev/null || echo "0 0")
+    fi
+
+    # status porcelain
+    changes=$(git -C "$wt" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$changes" -gt 0 ]; then
+        status="${C_YELLOW}● ${changes} file(s)${C_RESET}"
+    else
+        status="${C_GREEN}clean${C_RESET}"
+    fi
+
+    # Colorisation ahead/behind
+    a_col="$C_DIM"; [ "$ahead"  -gt 0 ] && a_col="$C_GREEN"
+    b_col="$C_DIM"; [ "$behind" -gt 0 ] && b_col="$C_RED"
+
+    printf '%-28s %b%-10s%b %b%-10s%b %b\n' \
+        "$br" \
+        "$a_col" "↑$ahead"  "$C_RESET" \
+        "$b_col" "↓$behind" "$C_RESET" \
+        "$status"
+    printf '  %s%s%s\n' "$C_DIM" "$wt" "$C_RESET"
+done

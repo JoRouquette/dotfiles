@@ -1,0 +1,20 @@
+# Backups créés par install.sh
+*.backup-*
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Éditeurs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temp
+tmp/
+*.tmp

@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# git-rebase-source
+#   Lance un rebase interactif sur la branche source détectée automatiquement.
+#   Si la détection échoue, demande la branche source.
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+case "${1:-}" in
+    -h|--help)
+        cat <<EOF
+Usage : git rebase-source
+  Rebase interactif sur la branche source détectée automatiquement.
+  Détection par ordre : reflog → upstream → branch.<x>.merge.
+  Commit "wip" auto en amont si changements non-commités.
+EOF
+        exit 0 ;;
+esac
+
+require_git_repo
+CURRENT=$(git rev-parse --abbrev-ref HEAD)
+
+# WIP si changements
+if [ -n "$(git status --porcelain)" ]; then
+    git add -A
+    git commit -m "wip"
+fi
+
+# Détection de la base
+BASE=""
+BASE=$(git reflog 2>/dev/null | grep -m1 "checkout: moving from" \
+         | sed -E 's/.*checkout: moving from [^ ]+ to ([^, ]+).*/\1/') || true
+
+if [ -z "$BASE" ] || [ "$BASE" = "$CURRENT" ]; then
+    BASE=$(git for-each-ref --format='%(upstream:short)' "refs/heads/$CURRENT" | sed 's|^origin/||')
+fi
+
+if [ -z "$BASE" ] || [ "$BASE" = "$CURRENT" ]; then
+    BASE=$(git config --get "branch.$CURRENT.merge" | sed 's|refs/heads/||')
+fi
+
+if [ -z "$BASE" ] || [ "$BASE" = "$CURRENT" ]; then
+    warn "Impossible de déterminer la branche source automatiquement."
+    printf '→ Nom de la branche source : ' >&2
+    read -r BASE
+fi
+
+info "Branche source : $BASE"
+git fetch origin "$BASE"
+
+# Mise à jour locale de la base si elle diverge du remote
+if [ "$(git rev-parse "$BASE" 2>/dev/null)" != "$(git rev-parse "origin/$BASE" 2>/dev/null)" ]; then
+    info "Mise à jour locale de '$BASE'"
+    git checkout "$BASE"
+    git pull origin "$BASE"
+    git checkout "$CURRENT"
+fi
+
+git rebase -i --onto "origin/$BASE" "$BASE" "$CURRENT"

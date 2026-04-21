@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# git-rename-branch <nouveau_nom>
+#   Renomme la branche courante en local + distant.
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+[ $# -eq 1 ] || { echo "Usage : git rename-branch <nouveau_nom>" >&2; exit 1; }
+NEW_NAME="$1"
+
+require_git_repo
+CURRENT=$(git rev-parse --abbrev-ref HEAD)
+
+if [ "$CURRENT" = "$NEW_NAME" ]; then
+    warn "La branche est déjà nommée '$NEW_NAME'."
+    exit 0
+fi
+
+git branch -m "$NEW_NAME"
+git push origin :"$CURRENT" "$NEW_NAME"
+git push --set-upstream origin "$NEW_NAME"
+ok "Branche renommée '$CURRENT' → '$NEW_NAME'."

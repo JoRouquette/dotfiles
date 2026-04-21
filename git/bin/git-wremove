@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# git-wremove [branch]
+#   Supprime un worktree. Si aucune branche donnée, liste interactive.
+#   Options :
+#     --force             passe --force (si des changements non-commités)
+#     --delete-branch     supprime aussi la branche locale et distante
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+usage() {
+    cat >&2 <<EOF
+Usage : git wremove [branch] [--force] [--delete-branch]
+EOF
+    exit 1
+}
+
+FORCE=false
+DELETE_BRANCH=false
+BRANCH=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --force|-f)       FORCE=true ;;
+        --delete-branch)  DELETE_BRANCH=true ;;
+        -h|--help)        usage ;;
+        -*)               die "Option inconnue : $1" ;;
+        *)                BRANCH="$1" ;;
+    esac
+    shift
+done
+
+require_git_repo
+CURRENT=$(git rev-parse --abbrev-ref HEAD)
+
+# Liste worktrees → (branch, path)
+mapfile -t wt_lines < <(git worktree list --porcelain)
+declare -a wt_paths=() wt_branches=()
+p="" b=""
+flush() { [ -n "$p" ] && { wt_paths+=("$p"); wt_branches+=("$b"); }; p=""; b=""; }
+for line in "${wt_lines[@]}"; do
+    case "$line" in
+        worktree\ *) flush; p="${line#worktree }" ;;
+        branch\ *)   b="${line#branch }"; b="${b#refs/heads/}" ;;
+        detached)    b="(detached)" ;;
+        "")          flush ;;
+    esac
+done
+flush
+
+# Si aucune branche en argument : sélection interactive
+if [ -z "$BRANCH" ]; then
+    [ "${#wt_branches[@]}" -le 1 ] && die "Aucun autre worktree à supprimer."
+    items=()
+    for i in "${!wt_branches[@]}"; do
+        [ "${wt_branches[$i]}" = "$CURRENT" ] && continue
+        items+=("${wt_branches[$i]}")
+    done
+    [ "${#items[@]}" -eq 0 ] && die "Aucun worktree supprimable (vous êtes sur le seul worktree)."
+    BRANCH=$(pick_from_list "Worktree à supprimer :" "${items[@]}")
+fi
+
+[ "$BRANCH" = "$CURRENT" ] && die "Impossible de supprimer le worktree courant."
+
+# Trouver le path
+target=""
+for i in "${!wt_branches[@]}"; do
+    [ "${wt_branches[$i]}" = "$BRANCH" ] && target="${wt_paths[$i]}"
+done
+[ -z "$target" ] && die "Aucun worktree trouvé pour la branche '$BRANCH'."
+
+info "Suppression du worktree : $target"
+$FORCE \
+    && git worktree remove --force "$target" \
+    || git worktree remove "$target"
+ok "Worktree supprimé."
+
+if $DELETE_BRANCH; then
+    confirm "Supprimer aussi la branche locale '$BRANCH' ?" n \
+        && git branch -D "$BRANCH" \
+        && ok "Branche locale supprimée."
+    if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+        confirm "Supprimer aussi la branche distante 'origin/$BRANCH' ?" n \
+            && git push origin --delete "$BRANCH" \
+            && ok "Branche distante supprimée."
+    fi
+fi

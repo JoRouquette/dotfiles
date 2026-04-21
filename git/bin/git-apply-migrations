@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# git-apply-migrations
+#   Applique les migrations EF après sélection interactive du
+#   DbContext, du projet, et saisie de la connection string.
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+mapfile -t CONTEXTS < <(grep -rh --include='*.cs' 'class .*DbContext' . \
+    | sed -E 's/.*class ([^ ]*DbContext).*/\1/' | sort -u)
+[ "${#CONTEXTS[@]}" -eq 0 ] && die "Aucun DbContext trouvé."
+CONTEXT=$(pick_from_list "Contexts disponibles :" "${CONTEXTS[@]}")
+
+mapfile -t PROJECTS < <(find . -name '*.csproj' | sed 's|^./||')
+[ "${#PROJECTS[@]}" -eq 0 ] && die "Aucun .csproj trouvé."
+PROJECT=$(pick_from_list "Projets disponibles :" "${PROJECTS[@]}")
+
+printf '→ Connection string : '
+read -r CONNECTION
+
+dotnet ef database update --context "$CONTEXT" --project "$PROJECT" --connection "$CONNECTION"

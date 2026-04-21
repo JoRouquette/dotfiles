@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# git-fetch-all [--yes]
+#   Fetch toutes les branches distantes et crée le tracking local
+#   pour celles qui n'existent pas encore en local.
+#   ⚠️  Peut polluer sur de gros repos. Demande confirmation par défaut.
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+YES=false
+for arg in "$@"; do
+    case "$arg" in
+        --yes|-y) YES=true ;;
+        -h|--help)
+            echo "Usage : git fetch-all [--yes]"
+            exit 0 ;;
+    esac
+done
+
+require_git_repo
+git fetch --all --prune
+
+# Branches distantes sans tracking local
+MISSING=()
+while IFS= read -r remote; do
+    [ "$remote" = "HEAD" ] && continue
+    git show-ref --verify --quiet "refs/heads/$remote" || MISSING+=("$remote")
+done < <(git branch -r | grep -v 'HEAD\|->' | sed 's|origin/||')
+
+if [ "${#MISSING[@]}" -eq 0 ]; then
+    ok "Toutes les branches distantes ont déjà un tracking local."
+    exit 0
+fi
+
+printf '%sLes branches suivantes n'\''existent pas encore en local :%s\n' "$C_BOLD" "$C_RESET"
+printf '  %s\n' "${MISSING[@]}"
+echo
+
+if ! $YES; then
+    confirm "Créer le tracking local pour ces ${#MISSING[@]} branches ?" n || { warn "Annulé."; exit 0; }
+fi
+
+for remote in "${MISSING[@]}"; do
+    info "Création tracking : $remote"
+    git checkout -b "$remote" "origin/$remote" || warn "Échec pour $remote"
+done
+
+ok "Toutes les branches distantes sont synchronisées localement."

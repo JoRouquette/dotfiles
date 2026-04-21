@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# git-wadd [-r] <branch>
+#   Ajoute un worktree pour <branch>, posé dans le "dossier projet"
+#   (parent du bare repo ou frère du repo normal).
+#
+#   Si <branch> n'existe pas localement mais existe sur origin/,
+#   un tracking local est créé.
+#
+#   -r|--remote   force la recherche d'abord sur origin/
+#   -f|--force    passe --force à `git worktree add`
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+usage() {
+    cat >&2 <<EOF
+Usage : git wadd [-r|--remote] [-f|--force] <branch>
+
+Exemples :
+  git wadd feature/HYG-123          # branche locale ou origin/
+  git wadd -r develop               # force le tracking depuis origin/
+EOF
+    exit 1
+}
+
+REMOTE=false
+FORCE=false
+BRANCH=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -r|--remote) REMOTE=true ;;
+        -f|--force)  FORCE=true ;;
+        -h|--help)   usage ;;
+        -*)          die "Option inconnue : $1" ;;
+        *)           BRANCH="$1" ;;
+    esac
+    shift
+done
+
+[ -z "$BRANCH" ] && usage
+require_git_repo
+
+# Si worktree déjà là : on affiche juste le chemin et sort.
+if existing=$(find_worktree_by_branch "$BRANCH"); then
+    ok "Worktree déjà présent pour '$BRANCH' : $existing"
+    exit 0
+fi
+
+WT_PATH=$(worktree_path_for_branch "$BRANCH")
+info "Cible : $WT_PATH"
+
+# Refresh remote refs si on vise du remote
+git fetch --quiet origin "$BRANCH" 2>/dev/null || true
+
+FORCE_FLAG=""
+$FORCE && FORCE_FLAG="--force"
+
+if git show-ref --verify --quiet "refs/heads/$BRANCH" && ! $REMOTE; then
+    # branche locale existe
+    info "Branche locale trouvée → worktree add $BRANCH"
+    git worktree add $FORCE_FLAG "$WT_PATH" "$BRANCH"
+elif git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+    # pas de branche locale, on crée le tracking depuis origin/
+    info "Branche distante 'origin/$BRANCH' → création locale + worktree"
+    git worktree add $FORCE_FLAG -b "$BRANCH" "$WT_PATH" "origin/$BRANCH"
+else
+    die "Branche '$BRANCH' introuvable (ni locale, ni sur origin/)."
+fi
+
+ok "Worktree créé : $WT_PATH"
+printf '%s\n' "$WT_PATH"

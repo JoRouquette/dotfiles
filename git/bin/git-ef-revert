@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# git-ef-revert [--context <ctx>] [--project <proj>] [--connection <cs>]
+#   Revert la dernière migration EF et la retire du projet.
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+CONTEXT=""; PROJECT=""; CONNECTION=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --context)     shift; CONTEXT="$1" ;;
+        --project)     shift; PROJECT="$1" ;;
+        --connection)  shift; CONNECTION="$1" ;;
+        *)             break ;;
+    esac
+    shift
+done
+
+MIGRATIONS_ARGS=()
+[ -n "$CONTEXT" ] && MIGRATIONS_ARGS+=(--context "$CONTEXT")
+[ -n "$PROJECT" ] && MIGRATIONS_ARGS+=(--project "$PROJECT")
+
+mapfile -t MIGRATIONS < <(dotnet ef migrations list "${MIGRATIONS_ARGS[@]}" | awk '{print $1}')
+COUNT=${#MIGRATIONS[@]}
+[ "$COUNT" -eq 0 ] && die "Aucune migration trouvée."
+
+LAST="${MIGRATIONS[$((COUNT-1))]}"
+PREV="0"
+[ "$COUNT" -gt 1 ] && PREV="${MIGRATIONS[$((COUNT-2))]}"
+
+info "Revert : $LAST → $PREV"
+
+UPDATE_ARGS=("${MIGRATIONS_ARGS[@]}")
+[ -n "$CONNECTION" ] && UPDATE_ARGS+=(--connection "$CONNECTION")
+
+dotnet ef database update "$PREV" "${UPDATE_ARGS[@]}"
+dotnet ef migrations remove "${MIGRATIONS_ARGS[@]}"
+
+ok "Migration $LAST revertée et retirée."

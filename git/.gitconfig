@@ -1,0 +1,186 @@
+; ============================================================
+;  ~/.gitconfig — Jonathan ROUQUETTE
+;
+;  Convention :
+;    - alias courts et one-liners : inline ci-dessous
+;    - logique complexe           : scripts externes dans
+;                                   ~/.config/git/bin/git-<nom>
+;
+;  Pour que les scripts externes soient trouvés, ajoute
+;  ~/.config/git/bin à ton PATH dans ~/.bashrc :
+;
+;      export PATH="$HOME/.config/git/bin:$PATH"
+;
+;  Et source les shell functions (pour les vrais `cd`) :
+;
+;      source ~/.config/git/bashrc-git.sh
+; ============================================================
+
+[user]
+	name  = Jonathan ROUQUETTE
+	email = rouquettej@gmail.com
+
+[core]
+	editor    = code --wait
+	longpaths = true
+	autocrlf  = input
+
+[init]
+	defaultBranch = main
+
+[push]
+	default        = current
+	autoSetupRemote = true
+	followTags     = true
+
+[pull]
+	rebase = true
+	ff     = only
+
+[fetch]
+	prune     = true
+	pruneTags = true
+
+[rebase]
+	autoStash   = true
+	autoSquash  = true
+	updateRefs  = true
+
+[merge]
+	conflictStyle = zdiff3
+
+[diff]
+	algorithm   = histogram
+	colorMoved  = default
+	mnemonicPrefix = true
+	renames     = true
+
+[color]
+	ui = auto
+
+[rerere]
+	enabled = true
+
+[help]
+	autocorrect = prompt
+
+[branch]
+	sort = -committerdate
+
+[tag]
+	sort = -creatordate
+
+[log]
+	date = iso-local
+
+[status]
+	submoduleSummary = true
+	showUntrackedFiles = all
+
+; ============================================================
+;                           ALIAS
+; ============================================================
+
+[alias]
+
+	# --- Meta -------------------------------------------------
+	cge = config --global --edit
+	aliases = !git config --get-regexp '^alias\\.' | sed 's/alias\\.//' | sort
+
+	# --- Basics -----------------------------------------------
+	co  = checkout
+	br  = branch
+	st  = status
+	nb  = checkout -b
+	del = branch -D
+	sb  = submodule
+	sbf = "!f() { git submodule foreach \"$@\"; }; f"
+
+	# --- Status & log ----------------------------------------
+	state = !git fetch --prune --tags && clear && git branch -vv && git status
+	logn  = !git log --oneline -n
+	sl    = stash list --pretty='%C(yellow)%gd%Creset %s %Cgreen(%cr)%Creset'
+	ll    = !git-ll
+	tree  = !git-tree
+	resume = !git-resume
+	resume-branch = !git-resume-branch
+
+	# --- Commit & push ---------------------------------------
+	c     = !git-c
+	ce    = !git-ce
+	wip   = !git add --all && git commit -m 'chore: wip' && git p
+	amend = !git add --all && git commit --amend --no-edit
+	afp   = !git amend && git fp
+	p     = !git push -u origin $(git rev-parse --abbrev-ref HEAD)
+	fp    = !git push origin $(git rev-parse --abbrev-ref HEAD) --force-with-lease
+	drop  = !git reset --hard HEAD && git clean -fd
+	undo  = reset --soft HEAD~1
+	cp    = !git-cp
+
+	# --- Branches --------------------------------------------
+	iswitch       = !git-iswitch
+	rename-branch = !git-rename-branch
+	fetch-all     = !git-fetch-all
+
+	# --- Rebase ----------------------------------------------
+	rom = !git fetch --all && git rebase $(git rev-parse --abbrev-ref origin/HEAD)
+	rim = !git rebase -i $(git merge-base HEAD $(git symbolic-ref --short HEAD)@{upstream})
+	rh  = !git fetch && git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)
+	ri  = "!f() { git rebase -i HEAD~$1; }; f"
+	rc  = rebase --continue
+	rs  = rebase --skip
+	ra  = rebase --abort
+	rebase-source = !git-rebase-source
+
+	# --- Cherry-pick -----------------------------------------
+	cpick      = !git-cpick
+	cpick-move = !git-cpick-move
+
+	# --- WIP cleanup & sync ----------------------------------
+	wip-fixup   = !git-wip-fixup
+	cleanup-all = !git-cleanup-all
+	cleanup     = !git-cleanup
+	update-repo = !git-update-repo
+	refresh     = !git-refresh
+
+	# --- Git-flow simulation ---------------------------------
+	start = !git-start
+
+	# --- Pull Requests ---------------------------------------
+	prdevops = !git-prdevops
+	prgithub = !git-prgithub
+
+	# --- Worktrees -------------------------------------------
+	wl   = worktree list
+	wp   = worktree prune
+	wa   = !git-wadd       # add worktree from existing branch (local/remote)
+	wn   = !git-wnew       # new branch + worktree from a base
+	ws   = !git-wswitch    # interactive switcher (prints path)
+	wg   = !git-wgo        # jump to a worktree by branch name (prints path)
+	wst  = !git-wstatus    # status overview of all worktrees
+	wc   = !git-wclean     # prune + remove merged worktrees
+	wr   = !git-wremove    # remove a worktree interactively
+
+	# --- Dotnet / Entity Framework ---------------------------
+	csharpier           = !git-csharpier
+	watch-run           = !git-watch-run
+	ef-list-migrations  = !git-ef-list-migrations
+	ef-revert           = !git-ef-revert
+	create-migration    = !git-create-migration
+	apply-migrations    = !git-apply-migrations
+
+	# --- Dotfiles sync ---------------------------------------
+	dsync = !git-dsync
+
+	# --- Multi-repo helper (worktree-aware) ------------------
+	logout = !wt-logout
+
+	# --- Network & process (Windows / Git Bash) --------------
+	netstat        = !netstat -ano | grep LISTEN
+	kill-listening = !git-kill-listening
+
+[filter "lfs"]
+	smudge   = git-lfs smudge -- %f
+	process  = git-lfs filter-process
+	required = true
+	clean    = git-lfs clean -- %f

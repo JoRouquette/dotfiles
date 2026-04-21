@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# git-wnew <branch> [--from <base>]
+#   Crée une nouvelle branche <branch> à partir de <base>
+#   (origin/<base> si base est distante) et ouvre un worktree dessus.
+#
+#   Par défaut :
+#     feature/* | fix/*        → base = develop
+#     release/* | hotfix/*     → base = main
+#     sinon                    → base = branche HEAD actuelle
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+usage() {
+    cat >&2 <<EOF
+Usage : git wnew <branch> [--from <base>] [--no-push]
+
+Exemples :
+  git wnew feature/HYG-456                        # depuis develop
+  git wnew hotfix/urgent --from main
+  git wnew chore/lint --from develop --no-push
+
+Options :
+  --from <base>   Branche source (fetch auto depuis origin/<base>).
+  --no-push       Ne push pas la nouvelle branche (par défaut : push avec -u).
+EOF
+    exit 1
+}
+
+BRANCH=""
+BASE=""
+PUSH=true
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --from)     shift; BASE="${1:-}" ;;
+        --no-push)  PUSH=false ;;
+        -h|--help)  usage ;;
+        -*)         die "Option inconnue : $1" ;;
+        *)          BRANCH="$1" ;;
+    esac
+    shift
+done
+
+[ -z "$BRANCH" ] && usage
+require_git_repo
+
+# Base par défaut via préfixe
+if [ -z "$BASE" ]; then
+    case "$BRANCH" in
+        feature/*|feat/*|fix/*)    BASE="develop" ;;
+        release/*|hotfix/*)        BASE="main" ;;
+        *)                         BASE=$(git rev-parse --abbrev-ref HEAD) ;;
+    esac
+fi
+info "Base : $BASE"
+
+# Fetch base
+git fetch --quiet origin "$BASE" 2>/dev/null || warn "Fetch origin/$BASE a échoué (branche distante absente ?)"
+
+# Source ref = origin/BASE si disponible, sinon BASE local
+if git show-ref --verify --quiet "refs/remotes/origin/$BASE"; then
+    SRC="origin/$BASE"
+elif git show-ref --verify --quiet "refs/heads/$BASE"; then
+    SRC="$BASE"
+else
+    die "Base '$BASE' introuvable (ni locale, ni sur origin/)."
+fi
+
+# Branche existe déjà ?
+if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+    die "La branche '$BRANCH' existe déjà localement."
+fi
+
+WT_PATH=$(worktree_path_for_branch "$BRANCH")
+info "Cible : $WT_PATH (branche depuis $SRC)"
+
+git worktree add -b "$BRANCH" "$WT_PATH" "$SRC"
+
+if $PUSH; then
+    info "Push initial de '$BRANCH' vers origin avec tracking"
+    git -C "$WT_PATH" push -u origin "$BRANCH"
+fi
+
+ok "Worktree créé : $WT_PATH"
+printf '%s\n' "$WT_PATH"

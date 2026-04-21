@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# git-resume-branch
+#   Génère un fichier diff.md avec :
+#     - les commits depuis l'upstream jusqu'à HEAD (un par un)
+#     - les changements staged
+#     - les changements unstaged
+#   Ajoute diff.md à .gitignore si absent.
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+require_git_repo
+
+UPSTREAM_REF=$(git rev-parse --abbrev-ref '@{u}' 2>/dev/null) \
+    || die "Pas d'upstream configuré pour la branche courante."
+
+DIFF_FILE="diff.md"
+UPSTREAM_SHA=$(git rev-parse '@{u}')
+echo "# Diff from $UPSTREAM_REF ($UPSTREAM_SHA) to HEAD (by commit)" > "$DIFF_FILE"
+
+COMMITS=$(git rev-list --reverse "$UPSTREAM_REF"..HEAD)
+if [ -n "$COMMITS" ]; then
+    for commit in $COMMITS; do
+        TITLE=$(git log -1 --pretty=format:'%h %s (%ad)' --date=short "$commit")
+        printf "\n## %s\n\n" "$TITLE" >> "$DIFF_FILE"
+        git show --color=never --word-diff --pretty=format:'' "$commit" >> "$DIFF_FILE"
+    done
+else
+    printf "\n_No new commits on top of %s._\n" "$UPSTREAM_REF" >> "$DIFF_FILE"
+fi
+
+if ! git diff --cached --quiet; then
+    printf "\n## Uncommitted changes (staged)\n\n" >> "$DIFF_FILE"
+    git diff --cached --color=never --word-diff >> "$DIFF_FILE"
+fi
+
+if ! git diff --quiet; then
+    printf "\n## Uncommitted changes (unstaged)\n\n" >> "$DIFF_FILE"
+    git diff --color=never --word-diff >> "$DIFF_FILE"
+fi
+
+if [ -z "$COMMITS" ] && git diff --quiet && git diff --cached --quiet; then
+    printf "\n_Working tree clean; nothing to show._\n" >> "$DIFF_FILE"
+fi
+
+ok "Créé $DIFF_FILE"
+
+if [ -f .gitignore ] && ! grep -q '^diff\.md$' .gitignore 2>/dev/null; then
+    echo 'diff.md' >> .gitignore
+    info "diff.md ajouté à .gitignore"
+fi

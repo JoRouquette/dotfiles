@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# git-dsync [--quiet] [--no-push] [--repo <path>]
+#   Synchronise le repo dotfiles : add + commit + rebase + push.
+#   Conçu pour tourner en tâche planifiée ou à la main.
+#   Silencieux si rien à faire. Ne laisse jamais le repo en mauvais état.
+#
+#   Par défaut : utilise $DOTFILES_DIR si défini, sinon $HOME/dotfiles.
+#
+#   Logs dans $HOME/.dotfiles-sync.log (rotation manuelle si besoin).
+
+set -euo pipefail
+
+# ---- Config par défaut --------------------------------------
+REPO_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
+LOG_FILE="${DOTFILES_SYNC_LOG:-$HOME/.dotfiles-sync.log}"
+PUSH=true
+QUIET=false
+
+# ---- Args ---------------------------------------------------
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --quiet|-q)   QUIET=true ;;
+        --no-push)    PUSH=false ;;
+        --repo)       shift; REPO_DIR="$1" ;;
+        -h|--help)
+            cat <<EOF
+Usage : git dsync [--quiet] [--no-push] [--repo <path>]
+
+Commit les modifications du repo dotfiles et les pousse sur GitHub.
+Idempotent, silencieux si rien à faire.
+
+Options :
+  --quiet        Sortie minimale (pour tâche planifiée).
+  --no-push      Commit local seulement, pas de push.
+  --repo <path>  Chemin du repo (défaut: \$DOTFILES_DIR ou ~/dotfiles).
+EOF
+            exit 0 ;;
+        *) echo "Option inconnue : $1" >&2; exit 1 ;;
+    esac
+    shift
+done
+
+# ---- Helpers ------------------------------------------------
+ts()   { date '+%Y-%m-%d %H:%M:%S'; }
+log()  { printf '[%s] %s\n' "$(ts)" "$*" >> "$LOG_FILE"; $QUIET || printf '%s\n' "$*"; }
+warn() { printf '[%s] WARN: %s\n' "$(ts)" "$*" >> "$LOG_FILE"; $QUIET || printf '! %s\n' "$*" >&2; }
+fail() { printf '[%s] ERROR: %s\n' "$(ts)" "$*" >> "$LOG_FILE"; printf '✗ %s\n' "$*" >&2; exit 1; }
+
+# ---- Sanity checks ------------------------------------------
+[ -d "$REPO_DIR/.git" ] || fail "Pas un repo git : $REPO_DIR"
+cd "$REPO_DIR"
+
+# Refuse de tourner si un merge/rebase est en cours
+if [ -d .git/rebase-apply ] || [ -d .git/rebase-merge ] || [ -f .git/MERGE_HEAD ]; then
+    warn "Rebase/merge en cours dans $REPO_DIR — sync reporté."
+    exit 0
+fi
+
+# Config commit auto (hostname + user, pas d'utilisateur interactif)
+HOSTNAME=$(hostname)
+HOST_TAG="${HOSTNAME:-pc}"
+
+# ---- Stage tout ---------------------------------------------
+git add -A
+
+# Rien à faire ?
+if git diff --cached --quiet; then
+    # Peut y avoir des commits locaux non pushed → on tente quand même un push
+    if $PUSH; then
+        AHEAD=$(git rev-list --count '@{u}..HEAD' 2>/dev/null || echo 0)
+        if [ "$AHEAD" -gt 0 ]; then
+            log "Rien à commit mais $AHEAD commit(s) local(aux) à pousser."
+        else
+            $QUIET || log "Rien à synchroniser."
+            exit 0
+        fi
+    else
+        $QUIET || log "Rien à synchroniser."
+        exit 0
+    fi
+else
+    # ---- Commit ---------------------------------------------
+    SUMMARY=$(git diff --cached --stat | tail -n 1)
+    MSG="auto-sync($HOST_TAG): $(date '+%Y-%m-%d %H:%M')  —  $SUMMARY"
+    git commit --quiet -m "$MSG" || fail "git commit a échoué"
+    log "Commit : $MSG"
+fi
+
+# ---- Rebase + push ------------------------------------------
+if $PUSH; then
+    # Fetch silencieux pour voir si l'upstream a bougé
+    if ! git fetch --quiet origin; then
+        warn "Fetch échoué (pas de réseau ?). Commit local conservé, push reporté."
+        exit 0
+    fi
+
+    BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+    # Rebase si l'upstream a avancé
+    if git rev-parse --verify --quiet "@{u}" >/dev/null; then
+        if ! git rebase --quiet --autostash "origin/$BRANCH"; then
+            git rebase --abort || true
+            fail "Rebase a échoué (conflit ?). Résous manuellement avec : cd $REPO_DIR && git pull --rebase"
+        fi
+    fi
+
+    if git push --quiet origin "$BRANCH"; then
+        log "Push OK vers origin/$BRANCH"
+    else
+        warn "Push échoué (credentials ? réseau ?). Commit conservé localement."
+        exit 0
+    fi
+fi
+
+exit 0

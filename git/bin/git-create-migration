@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# git-create-migration <nom>
+#   Crée une nouvelle migration EF, avec sélection interactive du
+#   DbContext et du projet.
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+[ $# -eq 1 ] || { echo "Usage : git create-migration <nom_migration>" >&2; exit 1; }
+MIGRATION_NAME="$1"
+
+mapfile -t CONTEXTS < <(grep -rh --include='*.cs' 'class .*DbContext' . \
+    | sed -E 's/.*class ([^ ]*DbContext).*/\1/' | sort -u)
+[ "${#CONTEXTS[@]}" -eq 0 ] && die "Aucun DbContext trouvé."
+CONTEXT=$(pick_from_list "Contexts disponibles :" "${CONTEXTS[@]}")
+
+mapfile -t PROJECTS < <(find . -name '*.csproj' | sed 's|^./||')
+[ "${#PROJECTS[@]}" -eq 0 ] && die "Aucun .csproj trouvé."
+PROJECT=$(pick_from_list "Projets disponibles :" "${PROJECTS[@]}")
+
+dotnet ef migrations add "$MIGRATION_NAME" --context "$CONTEXT" --project "$PROJECT"

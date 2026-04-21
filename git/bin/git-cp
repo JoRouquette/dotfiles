@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# git-cp
+#   Copie le hash du dernier commit dans le presse-papiers.
+#   Compatible Git Bash (Windows), xclip (Linux), pbcopy (macOS).
+
+set -euo pipefail
+
+case "${1:-}" in
+    -h|--help)
+        echo "Usage : git cp"
+        echo "  Copie le hash du dernier commit dans le presse-papiers."
+        exit 0 ;;
+esac
+
+HASH=$(git rev-parse HEAD)
+
+copy() {
+    if command -v clip.exe >/dev/null 2>&1; then
+        # Git Bash / WSL
+        printf '%s' "$1" | clip.exe
+    elif command -v pbcopy >/dev/null 2>&1; then
+        # macOS
+        printf '%s' "$1" | pbcopy
+    elif command -v xclip >/dev/null 2>&1; then
+        # Linux X
+        printf '%s' "$1" | xclip -selection clipboard
+    elif command -v wl-copy >/dev/null 2>&1; then
+        # Linux Wayland
+        printf '%s' "$1" | wl-copy
+    else
+        echo "Aucun outil clipboard trouvé (clip.exe, pbcopy, xclip, wl-copy)." >&2
+        return 1
+    fi
+}
+
+copy "$HASH" && echo "✓ Hash copié : $HASH"

@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# git-prdevops [-t <titre>] [--target <branche>] [--draft]
+#   Crée une PR Azure DevOps depuis la branche courante.
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+if [ "${1:-}" = "--help" ]; then
+    cat <<EOF
+Usage : git prdevops [-t <titre>] [--target <branche>] [--draft]
+  -t <titre>       Titre personnalisé de la PR
+  --target <nom>   Branche cible (sinon auto : feature/*→develop, release/*→main)
+  --draft          PR en brouillon
+EOF
+    exit 0
+fi
+
+command -v az >/dev/null || die "La commande 'az' n'est pas installée."
+
+TARGET=""; TITLE=""; DRAFT_OPTION=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -t)        shift; TITLE="$1" ;;
+        --target)  shift; TARGET="$1" ;;
+        --draft)   DRAFT_OPTION="--draft true" ;;
+    esac
+    shift
+done
+
+require_git_repo
+BR=$(git rev-parse --abbrev-ref HEAD)
+SHORT_NAME="${BR##*/}"
+PREFIX="${BR%%/*}"
+
+if [ -z "$TARGET" ]; then
+    case "$PREFIX" in
+        feature|feat|fix)   TARGET="develop" ;;
+        release|hotfix)     TARGET="main" ;;
+        *)                  die "Type de branche non reconnu : $PREFIX" ;;
+    esac
+fi
+
+FINAL_TITLE="${TITLE:-$SHORT_NAME}"
+FINAL_DESC="PR créée automatiquement depuis la CLI\\n\\nTitre : $FINAL_TITLE\\nBranche : $BR\\nType : $PREFIX\\n"
+
+RESULT=$(az repos pr create \
+    --source "$BR" \
+    --target "$TARGET" \
+    --title "$FINAL_TITLE" \
+    --description "$FINAL_DESC" \
+    $DRAFT_OPTION \
+    --output json) || die "az repos pr create a échoué."
+
+PR_ID=$(echo "$RESULT"   | grep '"pullRequestId"' | cut -d ':' -f2 | tr -d ' ,"')
+WEB_URL=$(echo "$RESULT" | grep '"webUrl"' | tail -1 | cut -d ':' -f2- | sed 's/[",]//g')
+
+ok "Pull Request créée :"
+echo "  - ID     : $PR_ID"
+echo "  - Titre  : $FINAL_TITLE"
+echo "  - Source : $BR"
+echo "  - Cible  : $TARGET"
+echo "  - URL    : $WEB_URL/pullrequest/$PR_ID"

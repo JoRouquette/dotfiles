@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# git-resume [<git diff args>]
+#   Affiche les diffs actuels fichier par fichier, chaque fichier
+#   précédé d'un header bleu. En word-diff color.
+
+set -euo pipefail
+
+git diff --name-only --diff-filter=ACMRTUXB "$@" \
+    | while IFS= read -r file; do
+        printf "\n\033[1;34m%s\033[0m\n" "$file"
+        git diff --color --word-diff "$@" -- "$file"
+    done

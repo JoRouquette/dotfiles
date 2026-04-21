@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# git-refresh [-s|--switch]
+#   Stash auto, fetch, pull, pop. Option --switch pour changer de branche
+#   interactivement avant le pull.
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+SWITCH=false
+for arg in "$@"; do
+    case "$arg" in
+        -s|--switch) SWITCH=true ;;
+        -h|--help)   echo "Usage: git refresh [-s|--switch]"; exit 0 ;;
+    esac
+done
+
+require_git_repo
+
+STASHED=false
+if [ -n "$(git status --porcelain)" ]; then
+    info "Stash temporaire"
+    git stash push -u -m 'refresh-stash'
+    STASHED=true
+fi
+
+if $SWITCH; then
+    git iswitch
+fi
+
+git fetch && git pull
+
+if $STASHED; then
+    STASH_REF=$(git stash list | grep 'refresh-stash' | head -1 | awk -F: '{print $1}')
+    if [ -n "$STASH_REF" ]; then
+        info "Restauration du stash"
+        git stash pop "$STASH_REF"
+    fi
+fi
+
+ok "Refresh terminé."

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# git-update-repo
+#   Met à jour toutes les branches locales qui ont un upstream,
+#   et revient à la branche courante.
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+require_git_repo
+current=$(git rev-parse --abbrev-ref HEAD)
+
+for branch in $(git for-each-ref --format='%(refname:short)' refs/heads/); do
+    upstream=$(git rev-parse --abbrev-ref "$branch@{upstream}" 2>/dev/null || true)
+    if [ -n "$upstream" ]; then
+        info "Mise à jour de $branch ← $upstream"
+        git checkout "$branch"
+        git pull --ff-only || warn "Pas de fast-forward possible pour $branch"
+    fi
+done
+
+git checkout "$current"
+ok "Repo à jour."

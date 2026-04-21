@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# git-kill-listening
+#   Tue tous les processus en LISTEN (Git Bash sur Windows).
+
+set -euo pipefail
+
+for pid in $(netstat -ano | grep LISTEN | awk '{print $5}' | sort -u); do
+    taskkill //PID "$pid" //F || true
+done

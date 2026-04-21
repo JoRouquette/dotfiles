@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# git-wgo <branch>
+#   Retourne le chemin du worktree pour <branch>.
+#   S'il n'existe pas, propose de le créer (via git-wadd ou git-wnew).
+#   Affiche le chemin sur stdout pour `cd "$(git wgo <branch>)"`.
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+usage() {
+    cat >&2 <<EOF
+Usage : git wgo <branch>
+
+Retourne le chemin du worktree pour <branch>. Si absent :
+  - branche existante (locale ou origin/) : propose `git wadd`
+  - branche inexistante                    : propose `git wnew`
+EOF
+    exit 1
+}
+
+[ $# -eq 1 ] || usage
+BRANCH="$1"
+require_git_repo
+
+# Cas 1 : worktree déjà là
+if existing=$(find_worktree_by_branch "$BRANCH"); then
+    printf '%s\n' "$existing"
+    exit 0
+fi
+
+# Cas 2 : branche existe quelque part → proposer wadd
+git fetch --quiet origin "$BRANCH" 2>/dev/null || true
+if git show-ref --verify --quiet "refs/heads/$BRANCH" \
+   || git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+    warn "Pas de worktree pour '$BRANCH' mais la branche existe."
+    if confirm "Créer le worktree maintenant ?" y; then
+        git-wadd "$BRANCH" >/dev/null
+        printf '%s\n' "$(find_worktree_by_branch "$BRANCH")"
+        exit 0
+    fi
+    die "Annulé."
+fi
+
+# Cas 3 : branche inexistante → proposer wnew
+warn "Branche '$BRANCH' introuvable (ni locale, ni distante)."
+if confirm "Créer une nouvelle branche + worktree ?" n; then
+    git-wnew "$BRANCH" >/dev/null
+    printf '%s\n' "$(find_worktree_by_branch "$BRANCH")"
+    exit 0
+fi
+die "Annulé."

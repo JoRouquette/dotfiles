@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# git-cpick-move <commit_hash> [options]
+#   Cherry-pick un commit vers une cible (branche existante ou nouvelle),
+#   avec option pour le supprimer de la branche source.
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+usage() {
+    cat >&2 <<EOF
+Usage : git cpick-move <commit_hash> [--target <target_branch>]
+                                     [--nb <new_branch> --source <source_branch>]
+                                     [--with-delete]
+
+  --target <branch>       Cible existante (auto si préfixe feature/* ou fix/* → develop)
+  --nb <branch>           Crée une nouvelle branche pour cherry-pick
+  --source <branch>       Source de la nouvelle branche (requis avec --nb)
+  --with-delete           Supprime le commit de la branche courante après coup
+EOF
+    exit 1
+}
+
+[ $# -lt 1 ] && usage
+COMMIT_HASH="$1"; shift
+TARGET_BRANCH=""; NEW_BRANCH=""; SOURCE_BRANCH=""; WITH_DELETE=false
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --target)       shift; TARGET_BRANCH="$1" ;;
+        --nb)           shift; NEW_BRANCH="$1" ;;
+        --source)       shift; SOURCE_BRANCH="$1" ;;
+        --with-delete)  WITH_DELETE=true ;;
+        -h|--help)      usage ;;
+        *)              usage ;;
+    esac
+    shift
+done
+
+require_git_repo
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+if [ -n "$NEW_BRANCH" ]; then
+    [ -z "$SOURCE_BRANCH" ] && die "--source doit être spécifié avec --nb"
+    git fetch origin "$SOURCE_BRANCH"
+    git switch "$SOURCE_BRANCH" 2>/dev/null || git checkout -b "$SOURCE_BRANCH" "origin/$SOURCE_BRANCH"
+    git pull --ff-only origin "$SOURCE_BRANCH"
+    git switch -c "$NEW_BRANCH"
+    TARGET_BRANCH="$NEW_BRANCH"
+elif [ -z "$TARGET_BRANCH" ]; then
+    case "$CURRENT_BRANCH" in
+        feature/*|fix/*)  TARGET_BRANCH="develop" ;;
+        *)                TARGET_BRANCH="main" ;;
+    esac
+    git fetch origin "$TARGET_BRANCH"
+    git switch "$TARGET_BRANCH"
+    git pull --ff-only origin "$TARGET_BRANCH"
+fi
+
+if ! git cherry-pick "$COMMIT_HASH"; then
+    git cherry-pick --abort
+    die "Cherry-pick échoué."
+fi
+
+git push origin "$TARGET_BRANCH"
+
+if $WITH_DELETE; then
+    git switch "$CURRENT_BRANCH"
+    git rebase --onto "$COMMIT_HASH"^ "$COMMIT_HASH" "$CURRENT_BRANCH"
+    git push origin "$CURRENT_BRANCH" --force-with-lease
+    ok "Commit $COMMIT_HASH déplacé de $CURRENT_BRANCH vers $TARGET_BRANCH et supprimé de la source."
+else
+    git switch "$CURRENT_BRANCH"
+    ok "Commit $COMMIT_HASH cherry-pické sur $TARGET_BRANCH."
+fi

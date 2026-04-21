@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# git-iswitch [-r|--remote]
+#   Switch interactif entre branches. Si des changements non-commités
+#   existent, les commit+push automatiquement en "WIP - à vérifier"
+#   avant de switcher.
+#
+#   -r | --remote   inclure aussi les branches distantes sans tracking local
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+REMOTE=false
+for arg in "$@"; do
+    case "$arg" in
+        -r|--remote) REMOTE=true ;;
+        -h|--help)   echo "Usage: git iswitch [-r|--remote]"; exit 0 ;;
+    esac
+done
+
+require_git_repo
+CURRENT=$(git rev-parse --abbrev-ref HEAD) || die "Impossible de détecter la branche courante."
+
+# Commit WIP si changements
+if [ -n "$(git status --porcelain)" ]; then
+    info "Commit WIP sur '$CURRENT'"
+    git add -A
+    git commit -m "WIP - à vérifier"
+    git push || die "Push échoué."
+else
+    info "Aucun changement à commit sur '$CURRENT'."
+fi
+
+# Collecte des branches
+LOCAL_BRANCHES=$(git for-each-ref --format='%(refname:short)' refs/heads)
+declare -a BRANCHES=() DISPLAY=()
+
+if $REMOTE; then
+    for rb in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin | grep -v '^origin/HEAD$'); do
+        name="${rb#origin/}"
+        if echo "$LOCAL_BRANCHES" | grep -qx "$name"; then
+            BRANCHES+=("$name"); DISPLAY+=("$name")
+        else
+            BRANCHES+=("$name"); DISPLAY+=("$name [remote]")
+        fi
+    done
+else
+    while IFS= read -r lb; do
+        BRANCHES+=("$lb"); DISPLAY+=("$lb")
+    done <<< "$LOCAL_BRANCHES"
+fi
+
+SELECTED=$(pick_from_list "Sélectionne une branche :" "${DISPLAY[@]}")
+SELECTED="${SELECTED% \[remote\]}"
+
+# Switch (création locale si besoin)
+if ! git show-ref --verify --quiet "refs/heads/$SELECTED"; then
+    info "Création locale depuis origin/$SELECTED"
+    git checkout -b "$SELECTED" "origin/$SELECTED"
+else
+    git switch "$SELECTED"
+fi
+
+# Comparer avec upstream
+git fetch origin "$SELECTED" >/dev/null 2>&1 || true
+if LOCAL_SHA=$(git rev-parse "$SELECTED" 2>/dev/null) && REMOTE_SHA=$(git rev-parse "origin/$SELECTED" 2>/dev/null); then
+    if [ "$LOCAL_SHA" = "$REMOTE_SHA" ]; then
+        ok "Branche '$SELECTED' à jour."
+    else
+        warn "'$SELECTED' n'est pas à jour avec origin."
+        CHOICE=$(pick_from_list "Que faire ?" \
+            "Fusionner origin/$SELECTED" \
+            "Écraser avec origin/$SELECTED (reset --hard)" \
+            "Ne rien faire")
+        case "$CHOICE" in
+            Fusionner*)  git merge "origin/$SELECTED" ;;
+            Écraser*)    git reset --hard "origin/$SELECTED" ;;
+            *)           info "Aucun changement appliqué." ;;
+        esac
+    fi
+fi
+
+ok "Passage sur '$SELECTED' terminé."

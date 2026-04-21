@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# git-tree [extra_ignore...]
+#   `tree` avec des ignores intelligents pour les projets JS/Angular/.NET.
+#   Arguments supplémentaires = patterns à ignorer en plus.
+
+command -v tree >/dev/null || { echo "La commande 'tree' n'est pas installée." >&2; exit 1; }
+
+IGNORE='node_modules|dist|.angular|.nx|.git|.next|.turbo|.cache|.output|tmp|bin|obj'
+
+EXTRA=""
+for arg in "$@"; do
+    EXTRA="${EXTRA:+$EXTRA|}$arg"
+done
+[ -n "$EXTRA" ] && IGNORE="$IGNORE|$EXTRA"
+
+tree -a -v --dirsfirst -C --noreport -I "$IGNORE" .

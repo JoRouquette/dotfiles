@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# git-watch-run [--target <t>] [--connection <c>]
+#   Sélectionne un projet .csproj et lance `dotnet watch run` en boucle.
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+case "${1:-}" in
+    -h|--help)
+        cat <<EOF
+Usage : git watch-run [--target <target>] [--connection <connection>]
+EOF
+        exit 0 ;;
+esac
+
+TARGET=""; CONNECTION=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --target)       shift; TARGET="$1" ;;
+        --connection)   shift; CONNECTION="$1" ;;
+        *)              break ;;
+    esac
+    shift
+done
+
+mapfile -t PROJECTS < <(find . -name '*.csproj' | sed 's|^./||')
+[ "${#PROJECTS[@]}" -eq 0 ] && die "Aucun .csproj trouvé."
+
+PROJECT=$(pick_from_list "Projets disponibles :" "${PROJECTS[@]}")
+
+CMD="dotnet watch run --project \"$PROJECT\""
+[ -n "$CONNECTION" ] && CMD="$CMD --connection \"$CONNECTION\""
+[ -n "$TARGET" ]     && CMD="$CMD --target \"$TARGET\""
+
+info "Démarrage : $PROJECT"
+while true; do
+    info "Exécution : $CMD"
+    eval $CMD || true
+    warn "Redémarrage dans 5 secondes... (Ctrl+C pour arrêter)"
+    sleep 5
+done

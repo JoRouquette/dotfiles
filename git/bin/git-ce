@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# git-ce [git commit args...]
+#   Commit en ouvrant l'éditeur (--edit --verbose).
+#   Si rien n'est staged, stage tout en amont.
+
+set -euo pipefail
+
+if git diff --cached --quiet; then
+    git add --all
+fi
+git commit --edit --verbose "$@"

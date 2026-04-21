@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# git-ef-list-migrations [--context <ctx>] [--project <proj>]
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+CONTEXT=""; PROJECT=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --context)  shift; CONTEXT="$1" ;;
+        --project)  shift; PROJECT="$1" ;;
+        *)          break ;;
+    esac
+    shift
+done
+
+if [ -z "$CONTEXT" ]; then
+    mapfile -t CONTEXTS < <(grep -rh --include='*.cs' 'class .*DbContext' . \
+        | sed -E 's/.*class ([^ ]*DbContext).*/\1/' | sort -u)
+    [ "${#CONTEXTS[@]}" -eq 0 ] && die "Aucun DbContext trouvé."
+    CONTEXT=$(pick_from_list "Contexts disponibles :" "${CONTEXTS[@]}")
+fi
+
+if [ -z "$PROJECT" ]; then
+    mapfile -t PROJECTS < <(find . -name '*.csproj' | sed 's|^./||')
+    [ "${#PROJECTS[@]}" -eq 0 ] && die "Aucun .csproj trouvé."
+    PROJECT=$(pick_from_list "Projets disponibles :" "${PROJECTS[@]}")
+fi
+
+dotnet ef migrations list --context "$CONTEXT" --project "$PROJECT"
