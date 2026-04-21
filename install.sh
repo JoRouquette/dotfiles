@@ -137,7 +137,7 @@ fi
 # 5. Ajout du fragment .bashrc
 if ! $NO_BASHRC; then
     BASHRC="$HOME/.bashrc"
-    MARKER_START="# >>> dotfiles (managed by ~/dotfiles/install.sh) >>>"
+    MARKER_START="# >>> dotfiles (managed by ~/.projects/dotfiles/install.sh) >>>"
     MARKER_END="# <<< dotfiles <<<"
     SRC_LINE="[ -f \"$REPO_DIR/bash/bashrc-extra.sh\" ] && source \"$REPO_DIR/bash/bashrc-extra.sh\""
 

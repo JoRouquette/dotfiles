@@ -1,5 +1,5 @@
 # ============================================================
-# ~/dotfiles/bash/bashrc-extra.sh
+# ~/.projects/dotfiles/bash/bashrc-extra.sh
 # Fragment sourcé par ~/.bashrc.
 # Ajouté automatiquement par `install.sh` avec un marker pour
 # pouvoir être détecté/mis à jour.

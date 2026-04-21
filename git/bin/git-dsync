@@ -4,14 +4,14 @@
 #   Conçu pour tourner en tâche planifiée ou à la main.
 #   Silencieux si rien à faire. Ne laisse jamais le repo en mauvais état.
 #
-#   Par défaut : utilise $DOTFILES_DIR si défini, sinon $HOME/dotfiles.
+#   Par défaut : utilise $DOTFILES_DIR si défini, sinon $HOME/.projects/dotfiles.
 #
 #   Logs dans $HOME/.dotfiles-sync.log (rotation manuelle si besoin).
 
 set -euo pipefail
 
 # ---- Config par défaut --------------------------------------
-REPO_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
+REPO_DIR="${DOTFILES_DIR:-$HOME/.projects/dotfiles}"
 LOG_FILE="${DOTFILES_SYNC_LOG:-$HOME/.dotfiles-sync.log}"
 PUSH=true
 QUIET=false
@@ -32,7 +32,7 @@ Idempotent, silencieux si rien à faire.
 Options :
   --quiet        Sortie minimale (pour tâche planifiée).
   --no-push      Commit local seulement, pas de push.
-  --repo <path>  Chemin du repo (défaut: \$DOTFILES_DIR ou ~/dotfiles).
+  --repo <path>  Chemin du repo (défaut: \$DOTFILES_DIR ou ~/.projects/dotfiles).
 EOF
             exit 0 ;;
         *) echo "Option inconnue : $1" >&2; exit 1 ;;

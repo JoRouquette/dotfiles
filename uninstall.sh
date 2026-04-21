@@ -4,7 +4,7 @@
 #   Si une backup .backup-* est trouvée, la restaure.
 #   Retire aussi le fragment dans ~/.bashrc.
 #
-#   NB : ne supprime PAS le repo lui-même ($HOME/dotfiles).
+#   NB : ne supprime PAS le repo lui-même ($HOME/.projects/dotfiles).
 
 set -euo pipefail
 
@@ -44,7 +44,7 @@ remove_link "$HOME/.config/git/bashrc-git.sh"
 
 # Nettoie le fragment .bashrc
 BASHRC="$HOME/.bashrc"
-MARKER_START="# >>> dotfiles (managed by ~/dotfiles/install.sh) >>>"
+MARKER_START="# >>> dotfiles (managed by ~/.projects/dotfiles/install.sh) >>>"
 MARKER_END="# <<< dotfiles <<<"
 
 if [ -f "$BASHRC" ] && grep -qF "$MARKER_START" "$BASHRC"; then

@@ -14,7 +14,7 @@
     Les logs vont dans %USERPROFILE%\.dotfiles-sync.log
 
 .PARAMETER BashPath
-    Chemin vers bash.exe (par défaut : C:\Program Files\Git\bin\bash.exe).
+    Chemin vers bash.exe. Détecté automatiquement si absent (cherche dans AppData\Local puis Program Files).
 
 .PARAMETER IntervalMinutes
     Intervalle du timer en minutes (par défaut : 30).
@@ -34,13 +34,28 @@
 
 [CmdletBinding()]
 param(
-    [string]$BashPath = "C:\Program Files\Git\bin\bash.exe",
+    [string]$BashPath = "",
     [int]$IntervalMinutes = 30
 )
 
 $ErrorActionPreference = 'Stop'
 
-# --- Vérifs ---
+# --- Détection automatique de bash.exe si non fourni ---
+if (-not $BashPath) {
+    $candidates = @(
+        "$env:LOCALAPPDATA\Programs\Git\usr\bin\bash.exe",
+        "$env:LOCALAPPDATA\Programs\Git\bin\bash.exe",
+        "C:\Program Files\Git\usr\bin\bash.exe",
+        "C:\Program Files\Git\bin\bash.exe"
+    )
+    $BashPath = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $BashPath) {
+        Write-Error "bash.exe introuvable. Précise -BashPath avec le bon chemin (ex: $env:LOCALAPPDATA\Programs\Git\usr\bin\bash.exe)."
+        exit 1
+    }
+    Write-Host "  bash.exe détecté : $BashPath"
+}
+
 if (-not (Test-Path $BashPath)) {
     Write-Error "bash.exe introuvable : $BashPath. Précise -BashPath avec le bon chemin."
     exit 1

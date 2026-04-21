@@ -2,7 +2,7 @@
 # bootstrap.sh
 #   Installation depuis zéro sur un nouveau PC :
 #     1. Vérifie les prérequis (git, bash)
-#     2. Clone ce repo dans $HOME/dotfiles si besoin
+#     2. Clone ce repo dans $HOME/.projects/dotfiles si besoin
 #     3. Lance install.sh
 #     4. Affiche la commande pour activer la sync auto Windows
 #
@@ -10,8 +10,8 @@
 #     curl) :
 #
 #     # Option A : clone manuel puis bootstrap
-#     git clone git@github.com:<user>/dotfiles.git ~/dotfiles
-#     ~/dotfiles/bootstrap.sh
+#     git clone git@github.com:<user>/dotfiles.git ~/.projects/dotfiles
+#     ~/.projects/dotfiles/bootstrap.sh
 #
 #     # Option B : one-liner
 #     bash <(curl -fsSL https://raw.githubusercontent.com/<user>/dotfiles/main/bootstrap.sh)
@@ -21,7 +21,7 @@
 set -euo pipefail
 
 REPO_URL_DEFAULT="${DOTFILES_REPO:-}"
-TARGET_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
+TARGET_DIR="${DOTFILES_DIR:-$HOME/.projects/dotfiles}"
 BRANCH="${DOTFILES_BRANCH:-main}"
 
 if [ -t 1 ]; then
