@@ -161,6 +161,7 @@
 	wst  = !git-wstatus    # status overview of all worktrees
 	wc   = !git-wclean     # prune + remove merged worktrees
 	wr   = !git-wremove    # remove a worktree interactively
+	clone-worktree = !git-clone-worktree
 
 	# --- Dotnet / Entity Framework ---------------------------
 	csharpier           = !git-csharpier
@@ -185,3 +186,6 @@
 	process  = git-lfs filter-process
 	required = true
 	clean    = git-lfs clean -- %f
+
+[remote "origin"]
+	fetch = +refs/heads/*:refs/remotes/origin/*

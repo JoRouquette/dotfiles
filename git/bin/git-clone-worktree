@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# git-clone-worktree <url> [dest]
+#   Clone un repo en mode bare et initialise le premier worktree
+#   sur la branche par défaut.
+#
+#   Exemples :
+#     git clone-worktree https://github.com/user/repo.git
+#     git clone-worktree https://github.com/user/repo.git ~/projects/my-repo
+
+set -euo pipefail
+source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+usage() {
+    cat >&2 <<EOF
+Usage : git clone-worktree <url> [dest]
+
+Clone un dépôt en mode bare et crée automatiquement un worktree
+pour la branche par défaut.
+
+Arguments :
+  <url>   URL du dépôt à cloner (HTTPS ou SSH).
+  [dest]  Dossier de destination (par défaut : nom du repo sans .git).
+
+Exemples :
+  git clone-worktree https://github.com/user/repo.git
+  git clone-worktree git@github.com:user/repo.git ~/projects/my-repo
+
+Structure créée :
+  dest/
+  ├── .bare/           <- dépôt bare
+  ├── .git             <- fichier pointant vers .bare
+  └── <branch>/        <- worktree de la branche par défaut
+EOF
+    exit 1
+}
+
+[ $# -lt 1 ] && usage
+
+url="$1"
+name=$(basename "$url" .git)
+dest=$(realpath -m "${2:-$name}")
+
+if [ -e "$dest" ]; then
+    die "'$dest' existe déjà."
+fi
+
+info "Clone bare → $dest/.bare"
+mkdir -p "$dest"
+git clone --bare "$url" "$dest/.bare"
+
+# Fichier .git pointant vers le bare
+printf 'gitdir: ./.bare\n' > "$dest/.git"
+
+# Configure le fetch pour récupérer toutes les branches distantes
+git -C "$dest" config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+git -C "$dest" fetch --quiet
+
+# Récupère la branche par défaut
+branch=$(git -C "$dest" symbolic-ref --short HEAD)
+
+info "Worktree → $dest/$branch"
+git -C "$dest" worktree add "$dest/$branch" "$branch"
+
+ok "Hub: $dest"
+ok "Worktree: $dest/$branch"
