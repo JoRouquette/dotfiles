@@ -11,10 +11,10 @@ export DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.projects/dotfiles}"
 # Config privée versionnée (optionnel, pour git-dsync multi-repo)
 export DOTFILES_CONFIG_DIR="${DOTFILES_CONFIG_DIR:-$HOME/.projects/dotfiles-config}"
 
-# Liste des repos à synchroniser automatiquement (séparés par :)
+# Liste des repos à synchroniser automatiquement (séparés par |)
 # Inclut dotfiles-config s'il existe
 if [ -d "$DOTFILES_CONFIG_DIR/.git" ]; then
-    export DOTFILES_SYNC_REPOS="${DOTFILES_SYNC_REPOS:-$DOTFILES_DIR:$DOTFILES_CONFIG_DIR}"
+    export DOTFILES_SYNC_REPOS="${DOTFILES_SYNC_REPOS:-$DOTFILES_DIR|$DOTFILES_CONFIG_DIR}"
 else
     export DOTFILES_SYNC_REPOS="${DOTFILES_SYNC_REPOS:-$DOTFILES_DIR}"
 fi

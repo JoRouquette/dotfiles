@@ -155,7 +155,7 @@ if [ -n "$SINGLE_REPO" ]; then
 else
     # Mode multi-repo
     repos_list="${DOTFILES_SYNC_REPOS:-$DEFAULT_REPO}"
-    IFS=':' read -ra repos <<< "$repos_list"
+    IFS='|' read -ra repos <<< "$repos_list"
 
     for repo in "${repos[@]}"; do
         [ -n "$repo" ] && sync_one_repo "$repo"
