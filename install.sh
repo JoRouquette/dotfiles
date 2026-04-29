@@ -166,23 +166,60 @@ fi
 # 6. Smoke test
 if ! $DRY_RUN; then
     if [ -L "$HOME/.gitconfig" ]; then
-        if git config --get user.email >/dev/null 2>&1; then
-            ok "git config accessible (user.email OK)"
+        USER_NAME=$(git config --get user.name 2>/dev/null || true)
+        USER_EMAIL=$(git config --get user.email 2>/dev/null || true)
+        
+        if [ -n "$USER_NAME" ] && [ -n "$USER_EMAIL" ]; then
+            ok "Identité git configurée : $USER_NAME <$USER_EMAIL>"
         else
-            warn "git config ne retourne pas user.email — vérifier manuellement"
+            warn "⚠️  Identité git non configurée !"
+            echo
+            echo "  Configure ton nom et email avec l'une de ces méthodes :"
+            echo
+            echo "  Option 1 — Fichier local (simple) :"
+            echo "    cp $REPO_DIR/git/gitconfig.local.template ~/.gitconfig.local"
+            echo "    # puis édite ~/.gitconfig.local"
+            echo
+            echo "  Option 2 — Repo privé (synchronisé entre machines) :"
+            echo "    mkdir -p ~/.projects/dotfiles-config"
+            echo "    cp $REPO_DIR/git/gitconfig.local.template ~/.projects/dotfiles-config/gitconfig.local"
+            echo "    # puis édite et versionne ce repo"
+            echo
         fi
     fi
 fi
+
+# Détection Windows pour les instructions
+IS_WINDOWS=false
+case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=true ;;
+esac
 
 printf '\n%sInstallation terminée.%s\n\n' "$C_G" "$C_R"
 cat <<EOF
 Prochaines étapes :
 
 1. Recharger le shell :          source ~/.bashrc
+EOF
+
+if $IS_WINDOWS; then
+    cat <<EOF
 
 2. (Windows) Activer la sync auto planifiée :
-     powershell -ExecutionPolicy Bypass \\
+
+   ${C_Y}Option A — Tâche planifiée (nécessite droits admin) :${C_R}
+     # PowerShell en tant qu'administrateur :
+     powershell -ExecutionPolicy Bypass \`
        -File "$REPO_DIR/windows/Register-AutoSyncTask.ps1"
+
+   ${C_Y}Option B — Sync au démarrage (sans droits admin) :${C_R}
+     # PowerShell normal :
+     powershell -ExecutionPolicy Bypass \`
+       -File "$REPO_DIR/windows/Setup-StartupSync.ps1"
+EOF
+fi
+
+cat <<EOF
 
 3. Tester la sync manuelle :     git dsync --no-push
                                  git dsync

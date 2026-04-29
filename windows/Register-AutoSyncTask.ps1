@@ -13,10 +13,18 @@
 
     Les logs vont dans %USERPROFILE%\.dotfiles-sync.log
 
+    ⚠️  IMPORTANT : Cette méthode nécessite des droits administrateur
+    pour enregistrer une tâche avec le mode "S4U" (Service for User).
+    
+    Si vous n'avez pas les droits admin, utilisez plutôt :
+        Setup-StartupSync.ps1
+    qui ajoute un raccourci dans le dossier Startup (sans admin).
+
 .PARAMETER BashPath
-    Chemin vers bash.exe. Détecté automatiquement si absent (cherche dans AppData\Local puis Program Files).
+    Chemin vers bash.exe. Détecté automatiquement si absent.
 
 .EXAMPLE
+    # En tant qu'administrateur :
     powershell -ExecutionPolicy Bypass -File .\Register-AutoSyncTask.ps1
 
 .EXAMPLE
@@ -25,7 +33,8 @@
       -BashPath "C:\Git\bin\bash.exe"
 
 .NOTES
-    À exécuter normalement (pas admin). La tâche tourne sous l'utilisateur courant en arrière-plan.
+    Requiert des droits administrateur pour le mode S4U.
+    Alternative sans admin : Setup-StartupSync.ps1
 #>
 
 [CmdletBinding()]
@@ -34,6 +43,25 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# --- Vérification des droits admin ---
+$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+if (-not $isAdmin) {
+    Write-Host ""
+    Write-Host "  ⚠️  ATTENTION : Ce script nécessite des droits administrateur." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  Le mode 'S4U' (Service for User) permet d'exécuter la tâche" -ForegroundColor Gray
+    Write-Host "  en arrière-plan sans fenêtre visible, mais requiert les droits admin." -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  Options :" -ForegroundColor Cyan
+    Write-Host "    1. Relancez PowerShell en tant qu'administrateur"
+    Write-Host "    2. Utilisez l'alternative sans admin :"
+    Write-Host "       powershell -ExecutionPolicy Bypass ``" -ForegroundColor Green
+    Write-Host "         -File `"$PSScriptRoot\Setup-StartupSync.ps1`"" -ForegroundColor Green
+    Write-Host ""
+    exit 1
+}
 
 # --- Détection automatique de bash.exe si non fourni ---
 if (-not $BashPath) {

@@ -2,6 +2,12 @@
 .SYNOPSIS
     Supprime la tâche planifiée "DotfilesAutoSync-Timer".
     Supprime aussi l'ancienne tâche "DotfilesAutoSync-Logoff" si elle existe encore.
+
+.NOTES
+    Pour supprimer le raccourci Startup (Setup-StartupSync.ps1), utilisez :
+      Remove-Item "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\DotfilesSync.lnk"
+    Ou lancez :
+      powershell -ExecutionPolicy Bypass -File Setup-StartupSync.ps1 -Remove
 #>
 
 $ErrorActionPreference = 'SilentlyContinue'
@@ -18,5 +24,13 @@ foreach ($t in $tasks) {
     }
 }
 
+# Vérifie aussi le raccourci Startup
+$StartupShortcut = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\DotfilesSync.lnk"
+if (Test-Path $StartupShortcut) {
+    Write-Host ""
+    Write-Host "[!] Raccourci Startup détecté : $StartupShortcut" -ForegroundColor Yellow
+    Write-Host "    Pour le supprimer : Setup-StartupSync.ps1 -Remove" -ForegroundColor Yellow
+}
+
 Write-Host ""
-Write-Host "Tâche supprimée. Les scripts et le repo dotfiles ne sont pas touchés." -ForegroundColor Cyan
+Write-Host "Tâches supprimées. Les scripts et le repo dotfiles ne sont pas touchés." -ForegroundColor Cyan

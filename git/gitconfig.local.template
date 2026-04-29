@@ -1,18 +1,27 @@
 ; ============================================================
 ;  Template de configuration personnelle
 ;
-;  Copier vers :
-;    - ~/.gitconfig.local (non versionné, pour tous)
-;    - OU ~/.projects/dotfiles-config/gitconfig.local (versionné privé)
+;  UTILISATION :
+;
+;  Option A — Fichier local (non versionné) :
+;    cp ~/.projects/dotfiles/git/gitconfig.local.template ~/.gitconfig.local
+;    # puis édite ~/.gitconfig.local
+;
+;  Option B — Repo privé (synchronisé entre machines) :
+;    mkdir -p ~/.projects/dotfiles-config
+;    cp ~/.projects/dotfiles/git/gitconfig.local.template \
+;       ~/.projects/dotfiles-config/gitconfig.local
+;    # puis édite et versionne ce repo
 ;
 ;  Ce fichier est inclus automatiquement par git/.gitconfig
 ; ============================================================
 
 [user]
+	; ⚠️ REMPLACE ces valeurs par ton identité réelle
 	name  = Prénom NOM
 	email = prenom.nom@example.com
 
-; --- Optionnel : Signing ---
+; --- Optionnel : Signing (commits signés GPG/SSH) ---
 ; [commit]
 ; 	gpgsign = true
 ; [user]
@@ -23,6 +32,7 @@
 ; 	helper = manager
 
 ; --- Optionnel : Email pro conditionnel (par dossier) ---
+; Exemple : utiliser un email différent pour ~/work/
 ; [includeIf "gitdir:~/work/"]
 ; 	path = ~/.gitconfig.work
 

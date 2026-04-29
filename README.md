@@ -4,16 +4,37 @@ Configuration personnelle versionnée : `.gitconfig`, alias git, scripts
 worktree, fragments bash. Synchronisation automatique entre plusieurs PC
 via GitHub.
 
+---
+
+## TL;DR — Installation complète en 5 minutes
+
+```bash
+# 1. Clone le repo
+git clone git@github.com:<TON_USER>/dotfiles.git ~/.projects/dotfiles
+cd ~/.projects/dotfiles
+
+# 2. Lance le bootstrap (installe + configure identité)
+./bootstrap.sh
+
+# 3. Recharge le shell
+source ~/.bashrc
+
+# 4. (Windows) Active la sync auto — voir section "Sync automatique"
+```
+
+---
+
 ## Contenu
 
 ```
 dotfiles/
 ├── README.md                         ← ce fichier
-├── bootstrap.sh                      ← setup premier usage
+├── bootstrap.sh                      ← setup premier usage (install + identité)
 ├── install.sh                        ← (ré)création des symlinks
 ├── uninstall.sh                      ← retrait propre
 ├── git/
-│   ├── .gitconfig                    ← config git principale
+│   ├── .gitconfig                    ← config git principale (publique)
+│   ├── gitconfig.local.template      ← template pour ton identité
 │   ├── bashrc-git.sh                 ← shell functions (wsw, wgo…)
 │   ├── bin/                          ← scripts externes `git-*`
 │   │   ├── git-wadd, git-wnew, git-wswitch, git-wgo, git-wstatus,
@@ -26,7 +47,8 @@ dotfiles/
 ├── bash/
 │   └── bashrc-extra.sh               ← fragment ajouté à ~/.bashrc
 └── windows/
-    ├── Register-AutoSyncTask.ps1     ← enregistre la sync Task Scheduler
+    ├── Register-AutoSyncTask.ps1     ← sync planifiée (12h/17h)
+    ├── Setup-StartupSync.ps1         ← alternative sans admin
     └── Unregister-AutoSyncTask.ps1
 ```
 
@@ -45,13 +67,12 @@ dotfiles/
 
 ---
 
-## Première installation (machine vierge)
+## Installation complète (machine vierge)
 
-### 1. Fork ou clone ce repo
+### Étape 1 : Fork ou clone ce repo
 
-Ce repo peut être **public** — il ne contient aucune donnée personnelle.
-L'identité git (nom, email) est configurée séparément dans `~/.gitconfig.local`
-ou dans un repo privé `dotfiles-config` (voir étape 6).
+Ce repo est **public** — il ne contient aucune donnée personnelle.
+L'identité git (nom, email) est configurée séparément.
 
 ```bash
 # Option 1 : Fork sur GitHub puis clone ton fork
@@ -63,75 +84,57 @@ cd ~/.projects/dotfiles
 git remote set-url origin git@github.com:<TON_USER>/dotfiles.git
 ```
 
-### 2. Lance l'installation
+### Étape 2 : Lance le bootstrap
 
 ```bash
 cd ~/.projects/dotfiles
-./install.sh
+./bootstrap.sh
 ```
 
-Ce que ça fait :
+Le script :
 
-- Vérifie que Git Bash peut créer des symlinks (Developer Mode).
-- Backup `~/.gitconfig` existant en `~/.gitconfig.backup-YYYYMMDD-HHMMSS`.
-- Crée les symlinks :
-  - `~/.gitconfig` → `~/.projects/dotfiles/git/.gitconfig`
-  - `~/.config/git/bin` → `~/.projects/dotfiles/git/bin`
-  - `~/.config/git/lib` → `~/.projects/dotfiles/git/lib`
-  - `~/.config/git/bashrc-git.sh` → `~/.projects/dotfiles/git/bashrc-git.sh`
-- Ajoute un bloc dans `~/.bashrc` (entre markers, ré-entrant) qui source
-  `~/.projects/dotfiles/bash/bashrc-extra.sh`. Ce fragment ajoute le PATH,
-  charge les shell functions, et installe un trap EXIT pour
-  synchroniser à la fermeture du terminal.
+- Vérifie les prérequis (git, bash, Developer Mode Windows)
+- Crée les symlinks vers `~/.gitconfig`, `~/.config/git/bin`, etc.
+- **Te guide pour configurer ton identité git** (nom, email)
+- Propose de créer un repo privé `dotfiles-config` pour versionner ton identité
 
-### 3. Recharge le shell
+### Étape 3 : Recharge le shell
 
 ```bash
 source ~/.bashrc
 ```
 
-Vérifie :
+Vérifie que tout fonctionne :
 
 ```bash
-git aliases          # liste tous les alias
-git wst              # (dans un repo) dashboard worktrees
-which git-dsync      # => ~/.config/git/bin/git-dsync
+git config user.name   # doit afficher ton nom
+git config user.email  # doit afficher ton email
+git aliases            # liste tous les alias
+which git-dsync        # => ~/.config/git/bin/git-dsync
 ```
 
-### 4. Active la sync automatique planifiée (Windows)
+### Étape 4 : Active la sync automatique (Windows)
 
-```powershell
-powershell -ExecutionPolicy Bypass `
-  -File ~\.projects\dotfiles\windows\Register-AutoSyncTask.ps1
-```
+Voir la section [Synchronisation automatique](#synchronisation-automatique-windows) ci-dessous.
 
-Ça crée une tâche planifiée :
+---
 
-| Nom                      | Déclencheur                |
-| ------------------------ | -------------------------- |
-| `DotfilesAutoSync-Timer` | Chaque jour à 12 h et 17 h |
+## Configuration de l'identité git
 
-La tâche exécute `bash -lc 'git dsync --quiet'`. Les logs sont dans
-`~/.dotfiles-sync.log`.
+Le repo public ne contient **aucune identité**. Tu dois configurer ton nom
+et email via l'une des méthodes suivantes :
 
-En plus, le **fragment bashrc installe un trap EXIT** qui lance
-`git dsync --quiet` en arrière-plan à la fermeture de chaque terminal
-interactif. Double filet.
-
-### 5. Configure ton identité git
-
-Le `.gitconfig` ne contient pas d'identité par défaut. Tu dois la configurer :
-
-#### Option A : Config locale simple (recommandé pour débuter)
+### Option A : Config locale simple (recommandé pour débuter)
 
 ```bash
 cp ~/.projects/dotfiles/git/gitconfig.local.template ~/.gitconfig.local
-# Édite ~/.gitconfig.local avec ton nom et email
+nano ~/.gitconfig.local   # ou code, vim...
+# Remplace "Prénom NOM" et "prenom.nom@example.com" par tes vraies valeurs
 ```
 
-#### Option B : Config privée versionnée (pour synchroniser entre machines)
+### Option B : Config privée versionnée (synchronisée entre machines)
 
-Crée un repo privé `dotfiles-config` :
+Crée un repo privé `dotfiles-config` sur GitHub, puis :
 
 ```bash
 mkdir -p ~/.projects/dotfiles-config
@@ -139,35 +142,99 @@ cd ~/.projects/dotfiles-config
 git init
 cp ~/.projects/dotfiles/git/gitconfig.local.template gitconfig.local
 # Édite gitconfig.local avec ton nom et email
-git add -A && git commit -m "init"
+git add -A && git commit -m "init: personal identity"
 git remote add origin git@github.com:<TON_USER>/dotfiles-config.git
 git push -u origin main
 ```
 
-Ce repo sera **synchronisé automatiquement** avec dotfiles (mêmes tâches
-planifiées, même trap EXIT).
+Ce repo sera **synchronisé automatiquement** avec dotfiles (même tâche
+planifiée, même trap EXIT).
 
-Sur une autre machine, après avoir installé dotfiles :
+**Sur une autre machine**, après avoir installé dotfiles :
 
 ```bash
 git clone git@github.com:<TON_USER>/dotfiles-config.git ~/.projects/dotfiles-config
-source ~/.bashrc  # recharge pour détecter le repo
+source ~/.bashrc   # détecte le repo et configure DOTFILES_SYNC_REPOS
+```
+
+### Chaîne d'include
+
+```
+git/.gitconfig
+  └─→ ~/.projects/dotfiles-config/gitconfig.local  (si existe, versionné privé)
+        └─→ ~/.gitconfig.local  (non versionné, override local)
 ```
 
 ---
 
-## Installation sur une machine supplémentaire
+## Synchronisation automatique (Windows)
 
-### One-liner via clone puis bootstrap
+Le repo se synchronise automatiquement grâce à :
 
-```bash
-git clone git@github.com:<TON_USER>/dotfiles.git ~/.projects/dotfiles
-~/.projects/dotfiles/bootstrap.sh
+1. **Trap EXIT** : `git dsync` à chaque fermeture de terminal (toujours actif)
+2. **Tâche planifiée** : sync à 12h et 17h (optionnel, nécessite configuration)
+
+### Option 1 : Tâche planifiée (⚠️ Nécessite droits administrateur)
+
+> **Note** : Cette méthode nécessite des droits administrateur pour
+> enregistrer une tâche avec le mode "S4U" (Service for User, invisible).
+> Si tu n'as pas les droits admin, utilise l'Option 2 ci-dessous.
+
+```powershell
+# Ouvre PowerShell en tant qu'administrateur, puis :
+powershell -ExecutionPolicy Bypass `
+  -File "$env:USERPROFILE\.projects\dotfiles\windows\Register-AutoSyncTask.ps1"
 ```
 
-Puis la même étape 4 (`source ~/.bashrc`) et étape 5 (sync Windows) que
-la première machine. `bootstrap.sh` est idempotent et peut être relancé
-sans danger.
+Crée une tâche `DotfilesAutoSync-Timer` qui s'exécute à 12h et 17h chaque jour.
+
+### Option 2 : Sync au démarrage Windows (sans droits admin)
+
+Si tu n'as pas les droits administrateur, utilise le script de démarrage :
+
+```powershell
+# PowerShell normal (pas besoin d'admin)
+powershell -ExecutionPolicy Bypass `
+  -File "$env:USERPROFILE\.projects\dotfiles\windows\Setup-StartupSync.ps1"
+```
+
+Cette méthode :
+
+- Ajoute un raccourci dans `shell:startup` (exécuté à chaque connexion Windows)
+- Lance `git dsync` au démarrage de la session
+- Ne nécessite **aucun droit administrateur**
+- Fonctionne même sur les postes d'entreprise verrouillés
+
+### Vérifier la sync
+
+```bash
+# Logs de sync
+tail -f ~/.dotfiles-sync.log
+
+# Sync manuelle
+git dsync
+git dsync --no-push   # commit local seulement
+git dsync --quiet     # mode silencieux
+```
+
+---
+
+## Installation sur une autre machine
+
+```bash
+# 1. Clone dotfiles
+git clone git@github.com:<TON_USER>/dotfiles.git ~/.projects/dotfiles
+cd ~/.projects/dotfiles
+./bootstrap.sh
+
+# 2. (Optionnel) Clone ta config privée si tu en as une
+git clone git@github.com:<TON_USER>/dotfiles-config.git ~/.projects/dotfiles-config
+
+# 3. Recharge
+source ~/.bashrc
+
+# 4. Active la sync auto (voir section Synchronisation automatique)
+```
 
 ---
 
@@ -225,11 +292,15 @@ Le cas est rare en pratique : les pushs sont fréquents (tâche planifiée
 
 ## Désinstaller
 
-### Juste les tâches Windows (garder les symlinks)
+### Retirer la sync automatique Windows
 
 ```powershell
+# Tâche planifiée (si installée via Register-AutoSyncTask.ps1)
 powershell -ExecutionPolicy Bypass `
   -File ~\.projects\dotfiles\windows\Unregister-AutoSyncTask.ps1
+
+# Raccourci startup (si installé via Setup-StartupSync.ps1)
+Remove-Item "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\DotfilesSync.lnk" -ErrorAction SilentlyContinue
 ```
 
 ### Tout retirer
@@ -264,6 +335,19 @@ Si une demande apparaît :
 
 Developer Mode pas activé. Paramètres Windows → Confidentialité et
 sécurité → Pour les développeurs → ON. Puis relance `install.sh --force`.
+
+### "La tâche planifiée 'DotfilesAutoSync-Timer' ne s'enregistre pas"
+
+**Cause probable** : droits administrateur requis pour le mode S4U.
+
+**Solutions** :
+
+1. Lance PowerShell **en tant qu'administrateur** et réessaie
+2. Ou utilise l'alternative sans admin :
+   ```powershell
+   powershell -ExecutionPolicy Bypass `
+     -File ~\.projects\dotfiles\windows\Setup-StartupSync.ps1
+   ```
 
 ### "La tâche planifiée 'DotfilesAutoSync-Timer' ne tourne pas"
 
