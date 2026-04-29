@@ -3,7 +3,7 @@
 # Fonctions partagées par les scripts git-w*
 # À sourcer, pas à exécuter.
 
-set -o pipefail
+set -euo pipefail
 
 # -- Couleurs (désactivées si non-tty) -----------------------
 if [ -t 1 ]; then
@@ -154,4 +154,39 @@ pick_from_list() {
         fi
         printf 'Choix invalide.\n' >&2
     done
+}
+
+# -- parse_worktree_list --------------------------------------
+# Parse `git worktree list --porcelain` et remplit deux tableaux
+# passés par nom : paths et branches. Exclut les bare repos.
+# Usage : parse_worktree_list my_paths my_branches
+parse_worktree_list() {
+    local -n _pwl_paths="$1" _pwl_branches="$2"
+    _pwl_paths=(); _pwl_branches=()
+    local _p="" _b="" _is_bare=false _line
+    while IFS= read -r _line || [[ -n "$_line" ]]; do
+        case "$_line" in
+            worktree\ *)
+                # flush previous
+                if [ -n "$_p" ] && [ "$_is_bare" = false ]; then
+                    _pwl_paths+=("$_p")
+                    _pwl_branches+=("${_b#refs/heads/}")
+                fi
+                _p="${_line#worktree }" _b="" _is_bare=false ;;
+            branch\ *)  _b="${_line#branch }" ;;
+            detached)   _b="(detached)" ;;
+            bare)       _is_bare=true ;;
+            "")
+                if [ -n "$_p" ] && [ "$_is_bare" = false ]; then
+                    _pwl_paths+=("$_p")
+                    _pwl_branches+=("${_b#refs/heads/}")
+                fi
+                _p="" _b="" _is_bare=false ;;
+        esac
+    done < <(git worktree list --porcelain)
+    # flush last entry
+    if [ -n "$_p" ] && [ "$_is_bare" = false ]; then
+        _pwl_paths+=("$_p")
+        _pwl_branches+=("${_b#refs/heads/}")
+    fi
 }

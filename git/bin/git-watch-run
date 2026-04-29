@@ -28,14 +28,14 @@ mapfile -t PROJECTS < <(find . -name '*.csproj' | sed 's|^./||')
 
 PROJECT=$(pick_from_list "Projets disponibles :" "${PROJECTS[@]}")
 
-CMD="dotnet watch run --project \"$PROJECT\""
-[ -n "$CONNECTION" ] && CMD="$CMD --connection \"$CONNECTION\""
-[ -n "$TARGET" ]     && CMD="$CMD --target \"$TARGET\""
+args=(dotnet watch run --project "$PROJECT")
+[ -n "$CONNECTION" ] && args+=(--connection "$CONNECTION")
+[ -n "$TARGET" ]     && args+=(--target "$TARGET")
 
 info "Démarrage : $PROJECT"
 while true; do
-    info "Exécution : $CMD"
-    eval $CMD || true
+    info "Exécution : ${args[*]}"
+    "${args[@]}" || true
     warn "Redémarrage dans 5 secondes... (Ctrl+C pour arrêter)"
     sleep 5
 done

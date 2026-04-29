@@ -34,19 +34,8 @@ require_git_repo
 CURRENT=$(git rev-parse --abbrev-ref HEAD)
 
 # Liste worktrees → (branch, path)
-mapfile -t wt_lines < <(git worktree list --porcelain)
 declare -a wt_paths=() wt_branches=()
-p="" b=""
-flush() { [ -n "$p" ] && { wt_paths+=("$p"); wt_branches+=("$b"); }; p=""; b=""; }
-for line in "${wt_lines[@]}"; do
-    case "$line" in
-        worktree\ *) flush; p="${line#worktree }" ;;
-        branch\ *)   b="${line#branch }"; b="${b#refs/heads/}" ;;
-        detached)    b="(detached)" ;;
-        "")          flush ;;
-    esac
-done
-flush
+parse_worktree_list wt_paths wt_branches
 
 # Si aucune branche en argument : sélection interactive
 if [ -z "$BRANCH" ]; then

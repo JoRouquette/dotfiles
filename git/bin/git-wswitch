@@ -9,35 +9,19 @@ source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
 
 require_git_repo
 
-# On lit git worktree list --porcelain et on formate en tableau.
-# Colonnes : index, branch, path
-mapfile -t lines < <(git worktree list --porcelain)
+# Parse worktrees via shared helper
+declare -a paths=() branches=()
+parse_worktree_list paths branches
 
-declare -a paths=() branches=() labels=()
-path="" branch=""
-
-flush() {
-    [ -z "$path" ] && return 0
-    local b="${branch#refs/heads/}"
-    [ -z "$b" ] && b="(detached)"
-    paths+=("$path")
-    branches+=("$b")
-    # label affiché
-    local here=""
-    [ "$path" = "$(pwd -P 2>/dev/null)" ] && here=" ${C_DIM}(ici)${C_RESET}"
-    labels+=("$(printf '%s%-30s%s  %s%s%s%s' "$C_CYAN" "$b" "$C_RESET" "$C_DIM" "$path" "$C_RESET" "$here")")
-    path=""; branch=""
-}
-
-for line in "${lines[@]}"; do
-    case "$line" in
-        worktree\ *)  flush; path="${line#worktree }" ;;
-        branch\ *)    branch="${line#branch }" ;;
-        detached)     branch="" ;;
-        "")           flush ;;
-    esac
+# Build labels for interactive display
+declare -a labels=()
+for i in "${!paths[@]}"; do
+    local_b="${branches[$i]}"
+    [ -z "$local_b" ] && local_b="(detached)"
+    here=""
+    [ "${paths[$i]}" = "$(pwd -P 2>/dev/null)" ] && here=" ${C_DIM}(ici)${C_RESET}"
+    labels+=("$(printf '%s%-30s%s  %s%s%s%s' "$C_CYAN" "$local_b" "$C_RESET" "$C_DIM" "${paths[$i]}" "$C_RESET" "$here")")
 done
-flush
 
 [ "${#paths[@]}" -eq 0 ] && die "Aucun worktree trouvé."
 if [ "${#paths[@]}" -eq 1 ]; then

@@ -50,6 +50,20 @@ fail() { printf '[%s] ERROR: %s\n' "$(ts)" "$*" >> "$LOG_FILE"; printf '✗ %s\n
 [ -d "$REPO_DIR/.git" ] || fail "Pas un repo git : $REPO_DIR"
 cd "$REPO_DIR"
 
+# ---- Lock (évite les exécutions concurrentes) ---------------
+LOCK_FILE="$REPO_DIR/.git/dsync.lock"
+if command -v flock >/dev/null 2>&1; then
+    exec 9>"$LOCK_FILE"
+    flock -n 9 || { log "Sync déjà en cours (lock actif). Skip."; exit 0; }
+else
+    # Fallback sans flock : mkdir atomique
+    if ! mkdir "$LOCK_FILE.d" 2>/dev/null; then
+        log "Sync déjà en cours (lock actif). Skip."
+        exit 0
+    fi
+    trap 'rmdir "$LOCK_FILE.d" 2>/dev/null' EXIT
+fi
+
 # Refuse de tourner si un merge/rebase est en cours
 if [ -d .git/rebase-apply ] || [ -d .git/rebase-merge ] || [ -f .git/MERGE_HEAD ]; then
     warn "Rebase/merge en cours dans $REPO_DIR — sync reporté."

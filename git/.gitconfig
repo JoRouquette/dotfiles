@@ -174,9 +174,6 @@
 	# --- Dotfiles sync ---------------------------------------
 	dsync = !git-dsync
 
-	# --- Multi-repo helper (worktree-aware) ------------------
-	logout = !wt-logout
-
 	# --- Network & process (Windows / Git Bash) --------------
 	netstat        = !netstat -ano | grep LISTEN
 	kill-listening = !git-kill-listening
@@ -189,3 +186,10 @@
 
 [remote "origin"]
 	fetch = +refs/heads/*:refs/remotes/origin/*
+
+; ============================================================
+;  Surcharges locales (non versionnées) : email pro, signing
+;  key, credential helper, paths machine-spécifiques.
+; ============================================================
+[include]
+	path = ~/.gitconfig.local

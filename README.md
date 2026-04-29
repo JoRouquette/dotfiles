@@ -58,7 +58,8 @@ Sur la première machine (celle qui a déjà la config locale à versionner),
 tu pars de ce dossier comme contenu initial.
 
 ```bash
-cd ~/dotfiles
+mkdir -p ~/.projects
+cd ~/.projects/dotfiles
 git init
 git remote add origin git@github.com:<TON_USER>/dotfiles.git
 git branch -M main
@@ -70,7 +71,7 @@ git push -u origin main
 ### 3. Lance l'installation
 
 ```bash
-cd ~/dotfiles
+cd ~/.projects/dotfiles
 ./install.sh
 ```
 
@@ -79,12 +80,12 @@ Ce que ça fait :
 - Vérifie que Git Bash peut créer des symlinks (Developer Mode).
 - Backup `~/.gitconfig` existant en `~/.gitconfig.backup-YYYYMMDD-HHMMSS`.
 - Crée les symlinks :
-  - `~/.gitconfig` → `~/dotfiles/git/.gitconfig`
-  - `~/.config/git/bin` → `~/dotfiles/git/bin`
-  - `~/.config/git/lib` → `~/dotfiles/git/lib`
-  - `~/.config/git/bashrc-git.sh` → `~/dotfiles/git/bashrc-git.sh`
+  - `~/.gitconfig` → `~/.projects/dotfiles/git/.gitconfig`
+  - `~/.config/git/bin` → `~/.projects/dotfiles/git/bin`
+  - `~/.config/git/lib` → `~/.projects/dotfiles/git/lib`
+  - `~/.config/git/bashrc-git.sh` → `~/.projects/dotfiles/git/bashrc-git.sh`
 - Ajoute un bloc dans `~/.bashrc` (entre markers, ré-entrant) qui source
-  `~/dotfiles/bash/bashrc-extra.sh`. Ce fragment ajoute le PATH,
+  `~/.projects/dotfiles/bash/bashrc-extra.sh`. Ce fragment ajoute le PATH,
   charge les shell functions, et installe un trap EXIT pour
   synchroniser à la fermeture du terminal.
 
@@ -106,22 +107,21 @@ which git-dsync      # => ~/.config/git/bin/git-dsync
 
 ```powershell
 powershell -ExecutionPolicy Bypass `
-  -File ~\dotfiles\windows\Register-AutoSyncTask.ps1
+  -File ~\.projects\dotfiles\windows\Register-AutoSyncTask.ps1
 ```
 
-Ça crée deux tâches planifiées :
+Ça crée une tâche planifiée :
 
-| Nom                          | Déclencheur                                   |
-|------------------------------|-----------------------------------------------|
-| `DotfilesAutoSync-Timer`     | Toutes les 30 min (filet de sécurité)         |
-| `DotfilesAutoSync-Logoff`    | À la déconnexion de session Windows (EventID 7002) |
+| Nom                      | Déclencheur                |
+| ------------------------ | -------------------------- |
+| `DotfilesAutoSync-Timer` | Chaque jour à 12 h et 17 h |
 
-Chaque tâche exécute `bash -lc 'git dsync --quiet'`. Les logs sont dans
+La tâche exécute `bash -lc 'git dsync --quiet'`. Les logs sont dans
 `~/.dotfiles-sync.log`.
 
 En plus, le **fragment bashrc installe un trap EXIT** qui lance
 `git dsync --quiet` en arrière-plan à la fermeture de chaque terminal
-interactif. Triple filet.
+interactif. Double filet.
 
 ---
 
@@ -130,8 +130,8 @@ interactif. Triple filet.
 ### One-liner via clone puis bootstrap
 
 ```bash
-git clone git@github.com:<TON_USER>/dotfiles.git ~/dotfiles
-~/dotfiles/bootstrap.sh
+git clone git@github.com:<TON_USER>/dotfiles.git ~/.projects/dotfiles
+~/.projects/dotfiles/bootstrap.sh
 ```
 
 Puis la même étape 4 (`source ~/.bashrc`) et étape 5 (sync Windows) que
@@ -144,9 +144,10 @@ sans danger.
 
 ### Tu modifies un script ou un alias
 
-Tu édites directement le fichier sous `~/dotfiles/git/bin/` (ou via le
-symlink dans `~/.config/git/bin/`, c'est pareil). Les modifications sont
-**immédiatement actives** — pas de "réinstallation" nécessaire.
+Tu édites directement le fichier sous `~/.projects/dotfiles/git/bin/`
+(ou via le symlink dans `~/.config/git/bin/`, c'est pareil). Les
+modifications sont **immédiatement actives** — pas de "réinstallation"
+nécessaire.
 
 ### Tu veux pousser maintenant
 
@@ -164,12 +165,12 @@ tail -f ~/.dotfiles-sync.log
 
 ### Tu veux synchroniser depuis un autre PC (tu as pushé depuis PC-A, tu es sur PC-B)
 
-Les tâches planifiées sur PC-B appellent `git dsync` toutes les 30 min,
-qui fait un `git fetch + rebase --autostash` avant de push. Donc PC-B se
-met à jour tout seul de temps en temps. Pour forcer :
+La tâche planifiée sur PC-B appelle `git dsync` deux fois par jour
+(12 h et 17 h), qui fait un `git fetch + rebase --autostash` avant de
+push. Donc PC-B se met à jour régulièrement. Pour forcer :
 
 ```bash
-cd ~/dotfiles && git pull --rebase
+cd ~/.projects/dotfiles && git pull --rebase
 ```
 
 ### Tu as un conflit entre PC
@@ -179,14 +180,15 @@ les deux. `git dsync` log alors un message d'erreur clair et interrompt
 la sync. Résolution manuelle :
 
 ```bash
-cd ~/dotfiles
+cd ~/.projects/dotfiles
 git pull --rebase
 # résous les conflits, git add, git rebase --continue
 git push
 ```
 
-Le cas est rare en pratique : les pushs sont fréquents (au moins toutes
-les 30 min), donc la fenêtre de divergence est courte.
+Le cas est rare en pratique : les pushs sont fréquents (tâche planifiée
+
+- trap EXIT), donc la fenêtre de divergence est courte.
 
 ---
 
@@ -196,13 +198,13 @@ les 30 min), donc la fenêtre de divergence est courte.
 
 ```powershell
 powershell -ExecutionPolicy Bypass `
-  -File ~\dotfiles\windows\Unregister-AutoSyncTask.ps1
+  -File ~\.projects\dotfiles\windows\Unregister-AutoSyncTask.ps1
 ```
 
 ### Tout retirer
 
 ```bash
-cd ~/dotfiles && ./uninstall.sh
+cd ~/.projects/dotfiles && ./uninstall.sh
 ```
 
 Restaure automatiquement le dernier `.backup-*` de `~/.gitconfig` si présent.
@@ -216,7 +218,7 @@ Restaure automatiquement le dernier `.backup-*` de `~/.gitconfig` si présent.
 Vérifier les credentials git :
 
 ```bash
-cd ~/dotfiles
+cd ~/.projects/dotfiles
 git push                 # doit marcher sans demande de mot de passe
 ```
 
@@ -242,17 +244,10 @@ fréquentes :
 - La session est verrouillée et la tâche est sur "Run only when user is
   logged on" → c'est normal, elle reprend au déverrouillage.
 
-### "La tâche 'DotfilesAutoSync-Logoff' ne se déclenche pas"
-
-L'event ID 7002 dépend des versions de Windows. Si ça ne marche pas, la
-tâche timer toutes les 30 min prend le relais. Tu peux aussi modifier
-`Register-AutoSyncTask.ps1` pour utiliser l'ID `1074` (shutdown initiated)
-à la place.
-
 ### "git dsync reste coincé sur un rebase"
 
 ```bash
-cd ~/dotfiles
+cd ~/.projects/dotfiles
 git rebase --abort   # ou --continue après résolution
 git dsync
 ```
@@ -264,7 +259,7 @@ git dsync
 - **Coupure de courant brutale** : si tu débranches le PC sans shutdown,
   le dernier commit potentiellement non-pushé est perdu (reste local au
   prochain boot, re-pushé au premier `git dsync`). Acceptable en pratique
-  vu la fréquence de sync (30 min).
+  vu la fréquence de sync (tâche planifiée + trap EXIT).
 - **Credentials spécifiques à une machine** : ne mets pas de secrets dans
   ce repo. Le `.gitconfig` ne contient que nom/email/alias ; pas de PAT
   ni de token.

@@ -72,19 +72,8 @@ $DRY_RUN || git worktree prune
 # Étape 2 : lister les worktrees + trouver ceux à supprimer
 CURRENT=$(git rev-parse --abbrev-ref HEAD)
 
-mapfile -t wt_lines < <(git worktree list --porcelain)
 declare -a wt_paths=() wt_branches=()
-p="" b=""
-flush() { [ -n "$p" ] && { wt_paths+=("$p"); wt_branches+=("$b"); }; p=""; b=""; }
-for line in "${wt_lines[@]}"; do
-    case "$line" in
-        worktree\ *) flush; p="${line#worktree }" ;;
-        branch\ *)   b="${line#branch }"; b="${b#refs/heads/}" ;;
-        detached)    b="(detached)" ;;
-        "")          flush ;;
-    esac
-done
-flush
+parse_worktree_list wt_paths wt_branches
 
 to_remove=()
 for i in "${!wt_paths[@]}"; do

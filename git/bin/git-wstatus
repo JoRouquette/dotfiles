@@ -11,27 +11,8 @@ source "$SCRIPT_DIR/../lib/wt-common.sh"
 
 require_git_repo
 
-# Liste — use while read for better compatibility
-lines=()
-while IFS= read -r line || [[ -n "$line" ]]; do
-    lines+=("$line")
-done < <(git worktree list --porcelain)
-
 declare -a paths=() branches=()
-p="" b=""
-flush() {
-    [ -z "$p" ] && return 0
-    paths+=("$p"); branches+=("$b"); p=""; b=""
-}
-for line in "${lines[@]}"; do
-    case "$line" in
-        worktree\ *)  flush; p="${line#worktree }" ;;
-        branch\ *)    b="${line#branch }"; b="${b#refs/heads/}" ;;
-        detached)     b="(detached)" ;;
-        "")           flush ;;
-    esac
-done
-flush
+parse_worktree_list paths branches
 
 # Header
 printf '%s%-28s %-10s %-10s %s%s\n' "$C_BOLD" "BRANCH" "AHEAD" "BEHIND" "STATUS" "$C_RESET"

@@ -1,9 +1,49 @@
 #!/usr/bin/env bash
-# git-kill-listening
-#   Tue tous les processus en LISTEN (Git Bash sur Windows).
+# git-kill-listening [port]
+#   Liste les processus en LISTEN et propose de les tuer.
+#   Si <port> est donné, ne cible que ce port.
+#   Sans argument, affiche tous les ports en écoute et demande confirmation.
 
 set -euo pipefail
 
-for pid in $(netstat -ano | grep LISTEN | awk '{print $5}' | sort -u); do
-    taskkill //PID "$pid" //F || true
+case "${1:-}" in
+    -h|--help)
+        cat >&2 <<EOF
+Usage : git kill-listening [port]
+
+Sans argument : liste tous les processus LISTEN, demande confirmation.
+Avec un port  : tue uniquement les processus sur ce port.
+EOF
+        exit 0 ;;
+esac
+
+PORT="${1:-}"
+
+if [ -n "$PORT" ]; then
+    PIDS=$(netstat -ano | grep LISTEN | awk -v p=":$PORT " '$2 ~ p {print $5}' | sort -u)
+else
+    PIDS=$(netstat -ano | grep LISTEN | awk '{print $5}' | sort -u)
+fi
+
+if [ -z "$PIDS" ]; then
+    echo "Aucun processus en LISTEN${PORT:+ sur le port $PORT}."
+    exit 0
+fi
+
+echo "Processus en LISTEN${PORT:+ sur le port $PORT} :"
+for pid in $PIDS; do
+    tasklist //FI "PID eq $pid" //NH 2>/dev/null || echo "  PID $pid (détails indisponibles)"
 done
+
+printf '\nTuer ces processus ? [y/N] '
+read -r answer
+case "$answer" in
+    y|Y|yes|YES)
+        for pid in $PIDS; do
+            taskkill //PID "$pid" //F 2>/dev/null && echo "✓ PID $pid tué" || echo "✗ PID $pid : échec"
+        done
+        ;;
+    *)
+        echo "Annulé."
+        ;;
+esac

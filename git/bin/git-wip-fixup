@@ -8,14 +8,26 @@ source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
 
 require_git_repo
 
-first_non_wip=$(git log --grep='^WIP' --invert-grep --pretty=format:'%h' | tail -n 1)
+# Walk back from HEAD to find the first non-WIP commit.
+# WIP patterns: messages starting with "WIP", "wip", "chore: wip"
+first_non_wip=""
+while IFS= read -r line; do
+    hash="${line%% *}"
+    msg="${line#* }"
+    case "$msg" in
+        WIP*|wip*|"chore: wip"*|"chore: WIP"*)
+            continue ;;
+        *)
+            first_non_wip="$hash"
+            break ;;
+    esac
+done < <(git log --pretty=format:'%h %s')
+
 [ -z "$first_non_wip" ] && die "Aucun commit non-WIP trouvé. Impossible de squash."
 
-first_message=$(git log -1 --pretty=%s "$first_non_wip")
-if echo "$first_message" | grep -q '^WIP'; then
-    warn "Le premier commit cible est un WIP. Renomme-le avant de continuer :"
-    git show -s --format='%h %s' "$first_non_wip"
-    exit 1
-fi
+# Count how many WIP commits are above it
+wip_count=$(git rev-list --count "$first_non_wip..HEAD")
+[ "$wip_count" -eq 0 ] && die "Aucun commit WIP au-dessus de '$first_non_wip'. Rien à squash."
 
-git rebase -i --autosquash "$first_non_wip^"
+info "$wip_count commit(s) WIP au-dessus de $(git log -1 --pretty='%h %s' "$first_non_wip")"
+git rebase -i --autosquash "$first_non_wip"
