@@ -9,7 +9,8 @@ via GitHub.
 ## TL;DR — Installation complète en 5 minutes
 
 ```bash
-# 1. Clone le repo
+# 1. Fork ce repo sur GitHub (bouton "Fork" en haut à droite)
+#    puis clone TON fork :
 git clone git@github.com:<TON_USER>/dotfiles.git ~/.projects/dotfiles
 cd ~/.projects/dotfiles
 
@@ -21,6 +22,9 @@ source ~/.bashrc
 
 # 4. (Windows) Active la sync auto — voir section "Sync automatique"
 ```
+
+> ⚠️ **Fork obligatoire** : Ce repo utilise la sync automatique (`git dsync`)
+> qui pousse tes modifications. Tu as besoin de ton propre repo pour ça.
 
 ---
 
@@ -69,20 +73,22 @@ dotfiles/
 
 ## Installation complète (machine vierge)
 
-### Étape 1 : Fork ou clone ce repo
+### Étape 1 : Fork ce repo (obligatoire)
 
-Ce repo est **public** — il ne contient aucune donnée personnelle.
-L'identité git (nom, email) est configurée séparément.
+> ⚠️ **Pourquoi forker ?** Ce repo utilise la synchronisation automatique
+> (`git dsync`) qui commit et pousse tes modifications. Sans ton propre repo,
+> les push échoueront (tu n'as pas les droits sur le repo original).
+
+1. **Fork** ce repo sur GitHub : clique sur le bouton **Fork** en haut à droite
+2. **Clone ton fork** (pas l'original) :
 
 ```bash
-# Option 1 : Fork sur GitHub puis clone ton fork
+# Remplace <TON_USER> par ton username GitHub
 git clone git@github.com:<TON_USER>/dotfiles.git ~/.projects/dotfiles
-
-# Option 2 : Clone direct + nouveau remote
-git clone https://github.com/ORIGINAL_USER/dotfiles.git ~/.projects/dotfiles
-cd ~/.projects/dotfiles
-git remote set-url origin git@github.com:<TON_USER>/dotfiles.git
 ```
+
+Ce repo est **public** et ne contient aucune donnée personnelle.
+L'identité git (nom, email) est configurée séparément (voir étape 2).
 
 ### Étape 2 : Lance le bootstrap
 
