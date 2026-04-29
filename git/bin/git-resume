@@ -5,6 +5,20 @@
 
 set -euo pipefail
 
+show_help() {
+    cat <<'EOF'
+Usage: git resume [git diff args]
+
+Show diffs file by file with colored word-diff.
+
+Examples:
+  git resume
+  git resume --staged
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+
 git diff --name-only --diff-filter=ACMRTUXB "$@" \
     | while IFS= read -r file; do
         printf "\n\033[1;34m%s\033[0m\n" "$file"

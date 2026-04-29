@@ -3,6 +3,21 @@
 #   `tree` avec des ignores intelligents pour les projets JS/Angular/.NET.
 #   Arguments supplémentaires = patterns à ignorer en plus.
 
+show_help() {
+    cat <<'EOF'
+Usage: git tree [extra_ignore...]
+
+Run tree with smart ignores for JS/Angular/.NET projects.
+Additional arguments are added to ignore patterns.
+
+Examples:
+  git tree
+  git tree coverage logs
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+
 command -v tree >/dev/null || { echo "La commande 'tree' n'est pas installée." >&2; exit 1; }
 
 IGNORE='node_modules|dist|.angular|.nx|.git|.next|.turbo|.cache|.output|tmp|bin|obj'

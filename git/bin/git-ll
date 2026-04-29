@@ -5,6 +5,20 @@
 
 set -euo pipefail
 
+show_help() {
+    cat <<'EOF'
+Usage: git ll <n>
+
+Show last <n> commits with full message body.
+
+Examples:
+  git ll 5
+  git ll 10
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+
 if [ $# -eq 0 ]; then
     echo "Usage : git ll <number>" >&2
     exit 1

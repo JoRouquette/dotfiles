@@ -24,6 +24,27 @@ warn() { printf "%s!%s %s\n" "$C_YELLOW" "$C_RESET" "$*" >&2; }
 info() { printf "%s→%s %s\n" "$C_BLUE"   "$C_RESET" "$*"; }
 ok()   { printf "%s✓%s %s\n" "$C_GREEN"  "$C_RESET" "$*"; }
 
+# -- resolve_path -------------------------------------------
+# Portable alternative to `readlink -f` (works on macOS/BSD).
+resolve_path() {
+    local target="$1"
+    if command -v realpath >/dev/null 2>&1; then
+        realpath "$target"
+    elif readlink -f / >/dev/null 2>&1; then
+        readlink -f "$target"
+    else
+        # Pure shell fallback (handles symlinks)
+        local dir base
+        dir=$(cd "$(dirname "$target")" && pwd)
+        base=$(basename "$target")
+        if [ -L "$dir/$base" ]; then
+            resolve_path "$(readlink "$dir/$base")"
+        else
+            printf '%s/%s\n' "$dir" "$base"
+        fi
+    fi
+}
+
 # -- require_git_repo ----------------------------------------
 # Sort en erreur si pas dans un repo.
 require_git_repo() {
@@ -49,8 +70,8 @@ project_root() {
     common_dir=$(cd "$common_dir" && pwd)
     parent=$(dirname "$common_dir")
     # Si common_dir est ".git" (repo normal), on prend le parent du parent
-    # pour les worktrees en "dossier frère du repo", mais dans notre cas
-    # Jonathan utilise bare → parent est le bon project_root.
+    # pour les worktrees en "dossier frère du repo".
+    # Avec un layout bare (.bare/), parent est le bon project_root.
     # Heuristique : si le basename du common_dir contient "bare" ou commence
     # par un point (.bare), c'est un bare → parent = project_root.
     # Sinon (repo normal), on met les worktrees en frère du repo.
@@ -71,7 +92,7 @@ project_root() {
 }
 
 # -- sanitize_dirname ----------------------------------------
-# "feature/HYG-123-foo" → "feature-HYG-123-foo"
+# "feature/PROJ-123-foo" → "feature-PROJ-123-foo"
 # Garde le nom de branche intact, ne transforme que le nom de dossier.
 sanitize_dirname() {
     printf '%s\n' "$1" | tr '/' '-' | tr -c 'A-Za-z0-9._-' '-' | sed 's/-\+/-/g; s/^-//; s/-$//'
@@ -92,7 +113,7 @@ worktree_path_for_branch() {
 find_worktree_by_branch() {
     local branch="$1"
     git worktree list --porcelain | awk -v b="refs/heads/$branch" '
-        /^worktree / { path=$2 }
+        /^worktree / { path=substr($0, 10) }
         /^branch /   { if ($2 == b) { print path; found=1; exit } }
         END          { exit !found }
     '

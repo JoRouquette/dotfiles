@@ -1,38 +1,43 @@
 #!/usr/bin/env bash
 # git-dsync [--quiet] [--no-push] [--repo <path>]
-#   Synchronise le repo dotfiles : add + commit + rebase + push.
+#   Synchronise les repos dotfiles : add + commit + rebase + push.
 #   Conçu pour tourner en tâche planifiée ou à la main.
 #   Silencieux si rien à faire. Ne laisse jamais le repo en mauvais état.
 #
-#   Par défaut : utilise $DOTFILES_DIR si défini, sinon $HOME/.projects/dotfiles.
+#   Par défaut synchronise tous les repos listés dans $DOTFILES_SYNC_REPOS
+#   (séparés par :), ou $DOTFILES_DIR, ou ~/.projects/dotfiles.
 #
 #   Logs dans $HOME/.dotfiles-sync.log (rotation manuelle si besoin).
 
 set -euo pipefail
 
 # ---- Config par défaut --------------------------------------
-REPO_DIR="${DOTFILES_DIR:-$HOME/.projects/dotfiles}"
+DEFAULT_REPO="${DOTFILES_DIR:-$HOME/.projects/dotfiles}"
 LOG_FILE="${DOTFILES_SYNC_LOG:-$HOME/.dotfiles-sync.log}"
 PUSH=true
 QUIET=false
+SINGLE_REPO=""
 
 # ---- Args ---------------------------------------------------
 while [ $# -gt 0 ]; do
     case "$1" in
         --quiet|-q)   QUIET=true ;;
         --no-push)    PUSH=false ;;
-        --repo)       shift; REPO_DIR="$1" ;;
+        --repo)       shift; SINGLE_REPO="$1" ;;
         -h|--help)
             cat <<EOF
 Usage : git dsync [--quiet] [--no-push] [--repo <path>]
 
-Commit les modifications du repo dotfiles et les pousse sur GitHub.
+Synchronise les repos dotfiles (commit + rebase + push).
 Idempotent, silencieux si rien à faire.
+
+Par défaut synchronise tous les repos listés dans \$DOTFILES_SYNC_REPOS
+(séparés par :), ou \$DOTFILES_DIR, ou ~/.projects/dotfiles.
 
 Options :
   --quiet        Sortie minimale (pour tâche planifiée).
   --no-push      Commit local seulement, pas de push.
-  --repo <path>  Chemin du repo (défaut: \$DOTFILES_DIR ou ~/.projects/dotfiles).
+  --repo <path>  Synchronise uniquement ce repo (ignore DOTFILES_SYNC_REPOS).
 EOF
             exit 0 ;;
         *) echo "Option inconnue : $1" >&2; exit 1 ;;
@@ -44,86 +49,117 @@ done
 ts()   { date '+%Y-%m-%d %H:%M:%S'; }
 log()  { printf '[%s] %s\n' "$(ts)" "$*" >> "$LOG_FILE"; $QUIET || printf '%s\n' "$*"; }
 warn() { printf '[%s] WARN: %s\n' "$(ts)" "$*" >> "$LOG_FILE"; $QUIET || printf '! %s\n' "$*" >&2; }
-fail() { printf '[%s] ERROR: %s\n' "$(ts)" "$*" >> "$LOG_FILE"; printf '✗ %s\n' "$*" >&2; exit 1; }
 
-# ---- Sanity checks ------------------------------------------
-[ -d "$REPO_DIR/.git" ] || fail "Pas un repo git : $REPO_DIR"
-cd "$REPO_DIR"
+# ---- Sync d'un seul repo ------------------------------------
+sync_one_repo() {
+    local repo_dir="$1"
+    local repo_name
+    repo_name=$(basename "$repo_dir")
 
-# ---- Lock (évite les exécutions concurrentes) ---------------
-LOCK_FILE="$REPO_DIR/.git/dsync.lock"
-if command -v flock >/dev/null 2>&1; then
-    exec 9>"$LOCK_FILE"
-    flock -n 9 || { log "Sync déjà en cours (lock actif). Skip."; exit 0; }
-else
-    # Fallback sans flock : mkdir atomique
-    if ! mkdir "$LOCK_FILE.d" 2>/dev/null; then
-        log "Sync déjà en cours (lock actif). Skip."
-        exit 0
+    # Sanity check
+    if [ ! -d "$repo_dir/.git" ]; then
+        $QUIET || warn "[$repo_name] Pas un repo git : $repo_dir (skip)"
+        return 0
     fi
-    trap 'rmdir "$LOCK_FILE.d" 2>/dev/null' EXIT
-fi
 
-# Refuse de tourner si un merge/rebase est en cours
-if [ -d .git/rebase-apply ] || [ -d .git/rebase-merge ] || [ -f .git/MERGE_HEAD ]; then
-    warn "Rebase/merge en cours dans $REPO_DIR — sync reporté."
-    exit 0
-fi
+    cd "$repo_dir"
 
-# Config commit auto (hostname + user, pas d'utilisateur interactif)
-HOSTNAME=$(hostname)
-HOST_TAG="${HOSTNAME:-pc}"
+    # Lock (évite les exécutions concurrentes)
+    local lock_file="$repo_dir/.git/dsync.lock"
+    if command -v flock >/dev/null 2>&1; then
+        exec 9>"$lock_file"
+        if ! flock -n 9; then
+            log "[$repo_name] Sync déjà en cours (lock actif). Skip."
+            return 0
+        fi
+    else
+        if ! mkdir "$lock_file.d" 2>/dev/null; then
+            log "[$repo_name] Sync déjà en cours (lock actif). Skip."
+            return 0
+        fi
+        trap 'rmdir "$lock_file.d" 2>/dev/null' RETURN
+    fi
 
-# ---- Stage tout ---------------------------------------------
-git add -A
+    # Refuse de tourner si un merge/rebase est en cours
+    if [ -d .git/rebase-apply ] || [ -d .git/rebase-merge ] || [ -f .git/MERGE_HEAD ]; then
+        warn "[$repo_name] Rebase/merge en cours — sync reporté."
+        return 0
+    fi
 
-# Rien à faire ?
-if git diff --cached --quiet; then
-    # Peut y avoir des commits locaux non pushed → on tente quand même un push
-    if $PUSH; then
-        AHEAD=$(git rev-list --count '@{u}..HEAD' 2>/dev/null || echo 0)
-        if [ "$AHEAD" -gt 0 ]; then
-            log "Rien à commit mais $AHEAD commit(s) local(aux) à pousser."
+    # Config commit auto
+    local host_tag
+    host_tag="${HOSTNAME:-$(hostname)}"
+    host_tag="${host_tag:-pc}"
+
+    # Stage tout
+    git add -A
+
+    # Rien à faire ?
+    if git diff --cached --quiet; then
+        if $PUSH; then
+            local ahead
+            ahead=$(git rev-list --count '@{u}..HEAD' 2>/dev/null || echo 0)
+            if [ "$ahead" -gt 0 ]; then
+                log "[$repo_name] Rien à commit mais $ahead commit(s) local(aux) à pousser."
+            else
+                $QUIET || log "[$repo_name] Rien à synchroniser."
+                return 0
+            fi
         else
-            $QUIET || log "Rien à synchroniser."
-            exit 0
+            $QUIET || log "[$repo_name] Rien à synchroniser."
+            return 0
         fi
     else
-        $QUIET || log "Rien à synchroniser."
-        exit 0
+        # Commit
+        local summary msg
+        summary=$(git diff --cached --stat | tail -n 1)
+        msg="auto-sync($host_tag): $(date '+%Y-%m-%d %H:%M')  —  $summary"
+        if ! git commit --quiet -m "$msg"; then
+            warn "[$repo_name] git commit a échoué"
+            return 1
+        fi
+        log "[$repo_name] Commit : $msg"
     fi
+
+    # Rebase + push
+    if $PUSH; then
+        if ! git fetch --quiet origin 2>/dev/null; then
+            warn "[$repo_name] Fetch échoué (pas de réseau ?). Commit local conservé, push reporté."
+            return 0
+        fi
+
+        local branch
+        branch=$(git rev-parse --abbrev-ref HEAD)
+
+        if git rev-parse --verify --quiet "@{u}" >/dev/null; then
+            if ! git rebase --quiet --autostash "origin/$branch" 2>/dev/null; then
+                git rebase --abort 2>/dev/null || true
+                warn "[$repo_name] Rebase a échoué (conflit ?). Résous manuellement avec : cd $repo_dir && git pull --rebase"
+                return 1
+            fi
+        fi
+
+        if git push --quiet origin "$branch" 2>/dev/null; then
+            log "[$repo_name] Push OK vers origin/$branch"
+        else
+            warn "[$repo_name] Push échoué (credentials ? réseau ?). Commit conservé localement."
+            return 0
+        fi
+    fi
+}
+
+# ---- Main : boucle sur tous les repos -----------------------
+if [ -n "$SINGLE_REPO" ]; then
+    # Mode single repo (--repo)
+    sync_one_repo "$SINGLE_REPO"
 else
-    # ---- Commit ---------------------------------------------
-    SUMMARY=$(git diff --cached --stat | tail -n 1)
-    MSG="auto-sync($HOST_TAG): $(date '+%Y-%m-%d %H:%M')  —  $SUMMARY"
-    git commit --quiet -m "$MSG" || fail "git commit a échoué"
-    log "Commit : $MSG"
-fi
+    # Mode multi-repo
+    repos_list="${DOTFILES_SYNC_REPOS:-$DEFAULT_REPO}"
+    IFS=':' read -ra repos <<< "$repos_list"
 
-# ---- Rebase + push ------------------------------------------
-if $PUSH; then
-    # Fetch silencieux pour voir si l'upstream a bougé
-    if ! git fetch --quiet origin; then
-        warn "Fetch échoué (pas de réseau ?). Commit local conservé, push reporté."
-        exit 0
-    fi
-
-    BRANCH=$(git rev-parse --abbrev-ref HEAD)
-
-    # Rebase si l'upstream a avancé
-    if git rev-parse --verify --quiet "@{u}" >/dev/null; then
-        if ! git rebase --quiet --autostash "origin/$BRANCH"; then
-            git rebase --abort || true
-            fail "Rebase a échoué (conflit ?). Résous manuellement avec : cd $REPO_DIR && git pull --rebase"
-        fi
-    fi
-
-    if git push --quiet origin "$BRANCH"; then
-        log "Push OK vers origin/$BRANCH"
-    else
-        warn "Push échoué (credentials ? réseau ?). Commit conservé localement."
-        exit 0
-    fi
+    for repo in "${repos[@]}"; do
+        [ -n "$repo" ] && sync_one_repo "$repo"
+    done
 fi
 
 exit 0

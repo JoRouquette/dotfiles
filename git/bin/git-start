@@ -6,7 +6,7 @@
 #     hotfix/<name>               → basé sur main
 
 set -euo pipefail
-source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+source "$(cd "$(dirname "$0")" && pwd)/../lib/wt-common.sh"
 
 BASE_DEV="develop"
 BASE_PROD="main"

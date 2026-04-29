@@ -1,0 +1,31 @@
+; ============================================================
+;  Template de configuration personnelle
+;
+;  Copier vers :
+;    - ~/.gitconfig.local (non versionné, pour tous)
+;    - OU ~/.projects/dotfiles-config/gitconfig.local (versionné privé)
+;
+;  Ce fichier est inclus automatiquement par git/.gitconfig
+; ============================================================
+
+[user]
+	name  = Prénom NOM
+	email = prenom.nom@example.com
+
+; --- Optionnel : Signing ---
+; [commit]
+; 	gpgsign = true
+; [user]
+; 	signingKey = ~/.ssh/id_ed25519.pub
+
+; --- Optionnel : Credential helper spécifique ---
+; [credential]
+; 	helper = manager
+
+; --- Optionnel : Email pro conditionnel (par dossier) ---
+; [includeIf "gitdir:~/work/"]
+; 	path = ~/.gitconfig.work
+
+; --- Optionnel : Alias perso non partagés ---
+; [alias]
+; 	mon-alias = ...

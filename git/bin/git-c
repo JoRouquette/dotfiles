@@ -4,6 +4,20 @@
 
 set -euo pipefail
 
+show_help() {
+    cat <<'EOF'
+Usage: git c <message...>
+
+Quick commit with message. If nothing is staged, stages all changes first.
+
+Examples:
+  git c Fix login bug
+  git c "Add new feature"
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+
 [ $# -eq 0 ] && { echo "Usage : git c <message>" >&2; exit 1; }
 
 if ! git diff --cached --quiet; then

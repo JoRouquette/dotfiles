@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# git-wpull [--rebase]
+#   Fetch origin puis pull (ff-only par défaut) chaque worktree.
+#   Utilise --autostash pour sauver/restaurer les changements locaux.
+#
+#   --rebase  utilise pull --rebase au lieu de --ff-only
+
+set -euo pipefail
+source "$(cd "$(dirname "$0")" && pwd)/../lib/wt-common.sh"
+
+case "${1:-}" in
+    -h|--help)
+        cat >&2 <<EOF
+Usage : git wpull [--rebase]
+
+Fetch et pull toutes les worktrees du projet.
+
+Options :
+  --rebase   Pull avec rebase au lieu de fast-forward only.
+  -h, --help Affiche cette aide.
+EOF
+        exit 0 ;;
+esac
+
+PULL_MODE="--ff-only"
+[ "${1:-}" = "--rebase" ] && PULL_MODE="--rebase"
+
+require_git_repo
+
+# Fetch une seule fois pour tout le projet
+info "Fetch origin..."
+git fetch --all --prune --quiet
+
+declare -a paths=() branches=()
+parse_worktree_list paths branches
+
+[ "${#paths[@]}" -eq 0 ] && die "Aucun worktree trouvé."
+
+errors=0
+
+for i in "${!paths[@]}"; do
+    wt="${paths[$i]}"
+    br="${branches[$i]}"
+
+    [ "$br" = "(detached)" ] && { warn "Skip $wt (detached HEAD)"; continue; }
+
+    # Vérifie qu'un upstream existe
+    if ! git -C "$wt" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
+        warn "Skip '$br' — pas d'upstream configuré"
+        continue
+    fi
+
+    # Rien à pull ?
+    behind=$(git -C "$wt" rev-list --count 'HEAD..@{u}' 2>/dev/null || echo 0)
+    if [ "$behind" -eq 0 ]; then
+        ok "$br  (déjà à jour)"
+        continue
+    fi
+
+    info "$br  (↓$behind commit(s))..."
+    if git -C "$wt" pull --quiet --autostash $PULL_MODE; then
+        ok "$br  ✓"
+    else
+        warn "$br  pull échoué (stash restauré par git si applicable)"
+        errors=$((errors + 1))
+    fi
+done
+
+[ "$errors" -gt 0 ] && warn "$errors worktree(s) en erreur."
+exit 0

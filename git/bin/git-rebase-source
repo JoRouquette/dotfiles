@@ -4,7 +4,7 @@
 #   Si la détection échoue, demande la branche source.
 
 set -euo pipefail
-source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+source "$(cd "$(dirname "$0")" && pwd)/../lib/wt-common.sh"
 
 case "${1:-}" in
     -h|--help)

@@ -4,6 +4,16 @@
 
 set -euo pipefail
 
+show_help() {
+    cat <<'EOF'
+Usage: git csharpier
+
+Format all staged .cs files with CSharpier and re-stage them.
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+
 files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.cs$' || true)
 
 if [ -z "$files" ]; then

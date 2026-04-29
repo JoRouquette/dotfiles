@@ -4,7 +4,17 @@
 #   et revient à la branche courante.
 
 set -euo pipefail
-source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+source "$(cd "$(dirname "$0")" && pwd)/../lib/wt-common.sh"
+
+show_help() {
+    cat <<'EOF'
+Usage: git update-repo
+
+Update all local branches that have an upstream (ff-only).
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
 
 require_git_repo
 current=$(git rev-parse --abbrev-ref HEAD)

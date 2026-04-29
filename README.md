@@ -47,28 +47,23 @@ dotfiles/
 
 ## Première installation (machine vierge)
 
-### 1. Crée un repo GitHub **privé** nommé `dotfiles`
+### 1. Fork ou clone ce repo
 
-Privé parce que le `.gitconfig` contient ton nom, ton email, et
-potentiellement des alias qui exposent ta structure projet.
-
-### 2. Clone ce repo une première fois
-
-Sur la première machine (celle qui a déjà la config locale à versionner),
-tu pars de ce dossier comme contenu initial.
+Ce repo peut être **public** — il ne contient aucune donnée personnelle.
+L'identité git (nom, email) est configurée séparément dans `~/.gitconfig.local`
+ou dans un repo privé `dotfiles-config` (voir étape 6).
 
 ```bash
-mkdir -p ~/.projects
+# Option 1 : Fork sur GitHub puis clone ton fork
+git clone git@github.com:<TON_USER>/dotfiles.git ~/.projects/dotfiles
+
+# Option 2 : Clone direct + nouveau remote
+git clone https://github.com/ORIGINAL_USER/dotfiles.git ~/.projects/dotfiles
 cd ~/.projects/dotfiles
-git init
-git remote add origin git@github.com:<TON_USER>/dotfiles.git
-git branch -M main
-git add -A
-git commit -m "initial import"
-git push -u origin main
+git remote set-url origin git@github.com:<TON_USER>/dotfiles.git
 ```
 
-### 3. Lance l'installation
+### 2. Lance l'installation
 
 ```bash
 cd ~/.projects/dotfiles
@@ -89,7 +84,7 @@ Ce que ça fait :
   charge les shell functions, et installe un trap EXIT pour
   synchroniser à la fermeture du terminal.
 
-### 4. Recharge le shell
+### 3. Recharge le shell
 
 ```bash
 source ~/.bashrc
@@ -103,7 +98,7 @@ git wst              # (dans un repo) dashboard worktrees
 which git-dsync      # => ~/.config/git/bin/git-dsync
 ```
 
-### 5. Active la sync automatique planifiée (Windows)
+### 4. Active la sync automatique planifiée (Windows)
 
 ```powershell
 powershell -ExecutionPolicy Bypass `
@@ -122,6 +117,42 @@ La tâche exécute `bash -lc 'git dsync --quiet'`. Les logs sont dans
 En plus, le **fragment bashrc installe un trap EXIT** qui lance
 `git dsync --quiet` en arrière-plan à la fermeture de chaque terminal
 interactif. Double filet.
+
+### 5. Configure ton identité git
+
+Le `.gitconfig` ne contient pas d'identité par défaut. Tu dois la configurer :
+
+#### Option A : Config locale simple (recommandé pour débuter)
+
+```bash
+cp ~/.projects/dotfiles/git/gitconfig.local.template ~/.gitconfig.local
+# Édite ~/.gitconfig.local avec ton nom et email
+```
+
+#### Option B : Config privée versionnée (pour synchroniser entre machines)
+
+Crée un repo privé `dotfiles-config` :
+
+```bash
+mkdir -p ~/.projects/dotfiles-config
+cd ~/.projects/dotfiles-config
+git init
+cp ~/.projects/dotfiles/git/gitconfig.local.template gitconfig.local
+# Édite gitconfig.local avec ton nom et email
+git add -A && git commit -m "init"
+git remote add origin git@github.com:<TON_USER>/dotfiles-config.git
+git push -u origin main
+```
+
+Ce repo sera **synchronisé automatiquement** avec dotfiles (mêmes tâches
+planifiées, même trap EXIT).
+
+Sur une autre machine, après avoir installé dotfiles :
+
+```bash
+git clone git@github.com:<TON_USER>/dotfiles-config.git ~/.projects/dotfiles-config
+source ~/.bashrc  # recharge pour détecter le repo
+```
 
 ---
 

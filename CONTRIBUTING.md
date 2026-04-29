@@ -237,7 +237,7 @@ Si tu es un LLM (Claude, Copilot, agent quelconque) qui travaille sur ce repo :
 - `ok "message"` — confirmation verte sur stderr
 - `require_git_repo` — sort en erreur si pas dans un repo git
 - `project_root` — retourne le dossier parent du bare repo (layout worktree)
-- `sanitize_dirname "feature/HYG-123"` — retourne `feature-HYG-123`
+- `sanitize_dirname "feature/PROJ-123"` — retourne `feature-PROJ-123`
 - `worktree_path_for_branch "branch"` — chemin cible d'un worktree
 - `find_worktree_by_branch "branch"` — chemin si le worktree existe, code 1 sinon
 - `list_all_branches` — toutes les branches (locales + remote), dédoublonnées
@@ -252,7 +252,7 @@ Ne réimplémente pas ces fonctions.
 
 **Ne modifie jamais `~/.gitconfig`** directement. Toujours éditer `git/.gitconfig` dans le repo. Le fichier `~/.gitconfig` est un symlink, et certains éditeurs résolvent les symlinks silencieusement.
 
-**Ne committe jamais** `~/.gitconfig.local`, ni quoi que ce soit contenant un email, un token, un PAT, une signing key, ou un path absolu spécifique à une machine (ex : `C:\Users\jonathan\...`).
+**Ne committe jamais** `~/.gitconfig.local`, ni quoi que ce soit contenant un email, un token, un PAT, une signing key, ou un path absolu spécifique à une machine (ex : `C:\Users\<username>\...`).
 
 **Quand on te demande "ajoute une fonctionnalité X"**, la réponse par défaut est :
 

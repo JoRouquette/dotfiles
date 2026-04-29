@@ -5,6 +5,20 @@
 
 set -euo pipefail
 
+show_help() {
+    cat <<'EOF'
+Usage: git ce [git commit args...]
+
+Commit with editor (--edit --verbose). If nothing is staged, stages all first.
+
+Examples:
+  git ce
+  git ce --amend
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+
 if git diff --cached --quiet; then
     git add --all
 fi

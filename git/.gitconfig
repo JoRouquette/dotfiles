@@ -1,5 +1,5 @@
 ; ============================================================
-;  ~/.gitconfig — Jonathan ROUQUETTE
+;  ~/.gitconfig — Git Configuration (dotfiles)
 ;
 ;  Convention :
 ;    - alias courts et one-liners : inline ci-dessous
@@ -14,11 +14,15 @@
 ;  Et source les shell functions (pour les vrais `cd`) :
 ;
 ;      source ~/.config/git/bashrc-git.sh
+;
+;  IDENTITÉ : configurer dans ~/.projects/dotfiles-config/gitconfig.local
+;             ou ~/.gitconfig.local (voir README.md)
 ; ============================================================
 
 [user]
-	name  = Jonathan ROUQUETTE
-	email = rouquettej@gmail.com
+	; Identité définie dans dotfiles-config ou ~/.gitconfig.local
+	; name  = Prénom NOM
+	; email = prenom.nom@example.com
 
 [core]
 	editor    = code --wait
@@ -151,7 +155,7 @@
 	prgithub = !git-prgithub
 
 	# --- Worktrees -------------------------------------------
-	w    = !printf 'Worktree aliases:\n  wl   worktree list\n  wp   worktree prune\n  wa   add worktree from existing branch (local/remote)\n  wn   new branch + worktree from a base\n  ws   interactive switcher (prints path)\n  wg   jump to a worktree by branch name (prints path)\n  wst  status overview of all worktrees\n  wc   prune + remove merged worktrees\n  wr   remove a worktree interactively\n  clone-worktree   clone repo in bare mode + first worktree\n'
+	w    = !printf 'Worktree aliases:\n  wl   worktree list\n  wp   worktree prune\n  wa   add worktree from existing branch (local/remote)\n  wn   new branch + worktree from a base\n  ws   interactive switcher (prints path)\n  wg   jump to a worktree by branch name (prints path)\n  wst  status overview of all worktrees\n  wpl  pull (ff-only) all worktrees at once\n  wc   prune + remove merged worktrees\n  wr   remove a worktree interactively\n  clone-worktree   clone repo in bare mode + first worktree\n'
 	wl   = worktree list
 	wp   = worktree prune
 	wa   = !git-wadd       # add worktree from existing branch (local/remote)
@@ -159,6 +163,7 @@
 	ws   = !git-wswitch    # interactive switcher (prints path)
 	wg   = !git-wgo        # jump to a worktree by branch name (prints path)
 	wst  = !git-wstatus    # status overview of all worktrees
+	wpl  = !git-wpull      # pull all worktrees (fetch + ff-only)
 	wc   = !git-wclean     # prune + remove merged worktrees
 	wr   = !git-wremove    # remove a worktree interactively
 	clone-worktree = !git-clone-worktree
@@ -188,8 +193,16 @@
 	fetch = +refs/heads/*:refs/remotes/origin/*
 
 ; ============================================================
-;  Surcharges locales (non versionnées) : email pro, signing
-;  key, credential helper, paths machine-spécifiques.
+;  Personnalisation (ordre de priorité : le dernier gagne)
+;
+;  1. Config privée versionnée (repo dotfiles-config optionnel)
+;  2. Config locale non versionnée (fallback)
+;
+;  Pour les collègues : créer ~/.gitconfig.local depuis le template
+;  Pour toi : utiliser dotfiles-config + ~/.gitconfig.local si besoin
 ; ============================================================
 [include]
+	; Config privée versionnée (optionnel)
+	path = ~/.projects/dotfiles-config/gitconfig.local
+	; Config locale non versionnée (fallback/override)
 	path = ~/.gitconfig.local

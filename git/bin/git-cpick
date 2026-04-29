@@ -3,7 +3,21 @@
 #   Cherry-pick le dernier commit sur une nouvelle branche basée sur <target>.
 
 set -euo pipefail
-source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+source "$(cd "$(dirname "$0")" && pwd)/../lib/wt-common.sh"
+
+show_help() {
+    cat <<'EOF'
+Usage: git cpick <target_branch> <new_branch_name>
+
+Cherry-pick HEAD commit onto a new branch based on <target>.
+
+Examples:
+  git cpick develop hotfix-123
+  git cpick main bugfix
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
 
 if [ $# -ne 2 ]; then
     echo "Usage : git cpick <target_branch> <new_branch_name>" >&2
