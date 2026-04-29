@@ -151,7 +151,7 @@
 	prgithub = !git-prgithub
 
 	# --- Worktrees -------------------------------------------
-	w    = !printf 'Worktree aliases:\n  wl   worktree list\n  wp   worktree prune\n  wa   add worktree from existing branch (local/remote)\n  wn   new branch + worktree from a base\n  ws   interactive switcher (prints path)\n  wg   jump to a worktree by branch name (prints path)\n  wst  status overview of all worktrees\n  wc   prune + remove merged worktrees\n  wr   remove a worktree interactively\n'
+	w    = !printf 'Worktree aliases:\n  wl   worktree list\n  wp   worktree prune\n  wa   add worktree from existing branch (local/remote)\n  wn   new branch + worktree from a base\n  ws   interactive switcher (prints path)\n  wg   jump to a worktree by branch name (prints path)\n  wst  status overview of all worktrees\n  wc   prune + remove merged worktrees\n  wr   remove a worktree interactively\n  clone-worktree   clone repo in bare mode + first worktree\n'
 	wl   = worktree list
 	wp   = worktree prune
 	wa   = !git-wadd       # add worktree from existing branch (local/remote)

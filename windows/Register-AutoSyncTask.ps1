@@ -1,23 +1,20 @@
 <#
 .SYNOPSIS
-    Enregistre les tâches planifiées Windows pour synchroniser
+    Enregistre la tâche planifiée Windows pour synchroniser
     le repo dotfiles automatiquement.
 
 .DESCRIPTION
-    Crée 2 tâches sous le nom "DotfilesAutoSync" :
-      1. "DotfilesAutoSync-Timer"   → toutes les 30 minutes
-      2. "DotfilesAutoSync-Logoff"  → à la déconnexion de session
+    Crée 1 tâche "DotfilesAutoSync-Timer" qui s'exécute :
+      - À 12:00 et 17:00 chaque jour
+      - En arrière-plan (invisible, pas de fenêtre)
 
-    Chaque tâche lance :
-        bash.exe -c 'git dsync --quiet'
+    La tâche lance :
+        bash.exe -lc 'git dsync --quiet'
 
     Les logs vont dans %USERPROFILE%\.dotfiles-sync.log
 
 .PARAMETER BashPath
     Chemin vers bash.exe. Détecté automatiquement si absent (cherche dans AppData\Local puis Program Files).
-
-.PARAMETER IntervalMinutes
-    Intervalle du timer en minutes (par défaut : 30).
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\Register-AutoSyncTask.ps1
@@ -25,17 +22,15 @@
 .EXAMPLE
     powershell -ExecutionPolicy Bypass `
       -File .\Register-AutoSyncTask.ps1 `
-      -BashPath "C:\Git\bin\bash.exe" `
-      -IntervalMinutes 15
+      -BashPath "C:\Git\bin\bash.exe"
 
 .NOTES
-    À exécuter normalement (pas admin). Les tâches tournent sous l'utilisateur courant.
+    À exécuter normalement (pas admin). La tâche tourne sous l'utilisateur courant en arrière-plan.
 #>
 
 [CmdletBinding()]
 param(
-    [string]$BashPath = "",
-    [int]$IntervalMinutes = 30
+    [string]$BashPath = ""
 )
 
 $ErrorActionPreference = 'Stop'
@@ -62,17 +57,17 @@ if (-not (Test-Path $BashPath)) {
 }
 
 $TimerTaskName  = "DotfilesAutoSync-Timer"
-$LogoffTaskName = "DotfilesAutoSync-Logoff"
-$Description    = "Synchronise le repo dotfiles (commit + push) automatiquement."
+$Description    = "Synchronise le repo dotfiles (commit + push) automatiquement à 12h et 17h."
 
-# Commande bash à exécuter : -i -c pour charger le PATH (et donc git-dsync)
+# Commande bash à exécuter : -l pour charger le PATH (et donc git-dsync)
 $BashArgs = "-lc `"git dsync --quiet`""
 
 Write-Host ""
-Write-Host "Enregistrement des tâches planifiées 'DotfilesAutoSync'" -ForegroundColor Cyan
+Write-Host "Enregistrement de la tâche planifiée 'DotfilesAutoSync'" -ForegroundColor Cyan
 Write-Host "  bash.exe      : $BashPath"
-Write-Host "  Intervalle    : $IntervalMinutes min"
+Write-Host "  Horaires      : 12:00 et 17:00"
 Write-Host "  Utilisateur   : $env:USERNAME"
+Write-Host "  Mode          : arrière-plan (invisible)"
 Write-Host ""
 
 # --- Action commune ---
@@ -88,19 +83,17 @@ $Settings = New-ScheduledTaskSettingsSet `
     -MultipleInstances IgnoreNew `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
 
-# Exécution sous le user courant (pas de SYSTEM, sinon les credentials git manquent)
+# Exécution sous le user courant en arrière-plan (S4U = invisible, pas de fenêtre)
 $Principal = New-ScheduledTaskPrincipal `
     -UserId $env:USERNAME `
-    -LogonType Interactive `
+    -LogonType S4U `
     -RunLevel Limited
 
 # ============================================================
-#  Tâche 1 : Timer (toutes les X min)
+#  Tâche : Timer quotidien à 12:00 et 17:00
 # ============================================================
-$TimerTrigger = New-ScheduledTaskTrigger `
-    -Once `
-    -At (Get-Date).AddMinutes(1) `
-    -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes)
+$Trigger12h = New-ScheduledTaskTrigger -Daily -At "12:00"
+$Trigger17h = New-ScheduledTaskTrigger -Daily -At "17:00"
 
 # Supprime l'ancienne si présente
 if (Get-ScheduledTask -TaskName $TimerTaskName -ErrorAction SilentlyContinue) {
@@ -108,61 +101,24 @@ if (Get-ScheduledTask -TaskName $TimerTaskName -ErrorAction SilentlyContinue) {
     Write-Host "  Ancienne tâche $TimerTaskName supprimée."
 }
 
+# Supprime aussi l'ancienne tâche Logoff si elle existe encore
+if (Get-ScheduledTask -TaskName "DotfilesAutoSync-Logoff" -ErrorAction SilentlyContinue) {
+    Unregister-ScheduledTask -TaskName "DotfilesAutoSync-Logoff" -Confirm:$false
+    Write-Host "  Ancienne tâche DotfilesAutoSync-Logoff supprimée."
+}
+
 Register-ScheduledTask `
     -TaskName $TimerTaskName `
-    -Description "$Description (timer $IntervalMinutes min)" `
+    -Description $Description `
     -Action $Action `
-    -Trigger $TimerTrigger `
+    -Trigger @($Trigger12h, $Trigger17h) `
     -Settings $Settings `
     -Principal $Principal `
     | Out-Null
-Write-Host "  [OK] $TimerTaskName" -ForegroundColor Green
-
-# ============================================================
-#  Tâche 2 : Logoff (à la déconnexion de session Windows)
-# ============================================================
-# Utilise un CIM-style trigger via event subscription
-# Event ID 4647 (logoff initiated) dans Security
-
-$LogoffTrigger = New-CimInstance `
-    -CimClass (Get-CimClass -ClassName MSFT_TaskEventTrigger -Namespace Root/Microsoft/Windows/TaskScheduler) `
-    -ClientOnly -Property @{
-        Subscription = @"
-<QueryList>
-  <Query Id="0" Path="System">
-    <Select Path="System">*[System[Provider[@Name='Microsoft-Windows-Winlogon'] and (EventID=7002)]]</Select>
-  </Query>
-</QueryList>
-"@
-        Enabled = $true
-    }
-
-# Event ID 7002 dans System = "User Logoff Notification for Customer Experience Improvement Program"
-# (déclenché fiabilement au logoff, plus fiable que 4647 qui exige audit policy)
-# Fallback : ID 1074 (System/User32 = shutdown/restart initiated)
-
-if (Get-ScheduledTask -TaskName $LogoffTaskName -ErrorAction SilentlyContinue) {
-    Unregister-ScheduledTask -TaskName $LogoffTaskName -Confirm:$false
-    Write-Host "  Ancienne tâche $LogoffTaskName supprimée."
-}
-
-try {
-    Register-ScheduledTask `
-        -TaskName $LogoffTaskName `
-        -Description "$Description (au logoff)" `
-        -Action $Action `
-        -Trigger $LogoffTrigger `
-        -Settings $Settings `
-        -Principal $Principal `
-        | Out-Null
-    Write-Host "  [OK] $LogoffTaskName" -ForegroundColor Green
-} catch {
-    Write-Warning "Échec création de la tâche logoff (événement $_.Exception.Message)"
-    Write-Host "  → La tâche timer $IntervalMinutes min suffit comme fallback." -ForegroundColor Yellow
-}
+Write-Host "  [OK] $TimerTaskName (12:00 + 17:00)" -ForegroundColor Green
 
 Write-Host ""
-Write-Host "Tâches enregistrées. Voir 'taskschd.msc' ou :" -ForegroundColor Cyan
+Write-Host "Tâche enregistrée. Voir 'taskschd.msc' ou :" -ForegroundColor Cyan
 Write-Host "  Get-ScheduledTask -TaskName DotfilesAutoSync-*"
 Write-Host ""
 Write-Host "Pour désinstaller : Unregister-AutoSyncTask.ps1" -ForegroundColor DarkGray

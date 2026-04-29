@@ -1,10 +1,12 @@
 <#
 .SYNOPSIS
-    Supprime les tâches planifiées "DotfilesAutoSync-*".
+    Supprime la tâche planifiée "DotfilesAutoSync-Timer".
+    Supprime aussi l'ancienne tâche "DotfilesAutoSync-Logoff" si elle existe encore.
 #>
 
 $ErrorActionPreference = 'SilentlyContinue'
 
+# Tâche actuelle + ancienne tâche Logoff (rétro-compatibilité)
 $tasks = @("DotfilesAutoSync-Timer", "DotfilesAutoSync-Logoff")
 
 foreach ($t in $tasks) {
@@ -17,4 +19,4 @@ foreach ($t in $tasks) {
 }
 
 Write-Host ""
-Write-Host "Tâches supprimées. Les scripts et le repo dotfiles ne sont pas touchés." -ForegroundColor Cyan
+Write-Host "Tâche supprimée. Les scripts et le repo dotfiles ne sont pas touchés." -ForegroundColor Cyan

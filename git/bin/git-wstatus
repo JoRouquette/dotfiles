@@ -4,12 +4,18 @@
 #     branche, path, ahead/behind vs upstream, fichiers modifiés.
 
 set -euo pipefail
-source "$(dirname "$(readlink -f "$0")")/../lib/wt-common.sh"
+
+# MINGW/Git Bash compatible path resolution
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../lib/wt-common.sh"
 
 require_git_repo
 
-# Liste
-mapfile -t lines < <(git worktree list --porcelain)
+# Liste — use while read for better compatibility
+lines=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+    lines+=("$line")
+done < <(git worktree list --porcelain)
 
 declare -a paths=() branches=()
 p="" b=""
