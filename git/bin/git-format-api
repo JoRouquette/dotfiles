@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# git-format-api
+#   Formate avec CSharpier chaque fichier .cs présent dans `git status`
+#   (modifiés + non suivis), un par un. Re-stage les fichiers qui étaient
+#   déjà dans l'index.
+
+set -euo pipefail
+
+show_help() {
+    cat <<'EOF'
+Usage: git format-api
+
+Formate avec CSharpier (`csharpier format`) chaque fichier .cs apparaissant
+dans `git status`, individuellement. Ne touche pas au reste du repo.
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+
+mapfile -t files < <(git -c core.quotepath=false status --porcelain \
+    | sed -e 's/^...//' -e 's/.* -> //' \
+    | grep -E '\.cs$' || true)
+
+if [ "${#files[@]}" -eq 0 ]; then
+    echo "format-api : aucun fichier .cs dans git status."
+    exit 0
+fi
+
+declare -A staged=()
+while IFS= read -r s; do staged["$s"]=1; done < <(git diff --cached --name-only)
+
+for f in "${files[@]}"; do
+    [ -f "$f" ] || continue
+    echo "→ CSharpier : $f"
+    csharpier format "$f"
+    [ -n "${staged[$f]:-}" ] && git add "$f"
+done

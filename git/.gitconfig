@@ -3,15 +3,17 @@
 ;
 ;  Convention :
 ;    - alias courts et one-liners : inline ci-dessous
-;    - logique complexe           : scripts externes dans
-;                                   ~/.config/git/bin/git-<nom>
+;    - logique complexe           : script externe dans
+;                                   ~/.config/git/bin/git-<nom>, référencé
+;                                   par chemin absolu :
+;                                   "!\"$HOME\"/.config/git/bin/git-<nom>"
 ;
-;  Pour que les scripts externes soient trouvés, ajoute
-;  ~/.config/git/bin à ton PATH dans ~/.bashrc :
+;  Les alias référencent les scripts par chemin absolu $HOME : ils sont
+;  donc trouvés SANS rien ajouter au PATH, dans n'importe quel shell
+;  (PowerShell, cmd, bash). Détails dans CONTRIBUTING.md §5.
 ;
-;      export PATH="$HOME/.config/git/bin:$PATH"
-;
-;  Et source les shell functions (pour les vrais `cd`) :
+;  Le PATH et les shell functions ne servent QUE pour les `cd` worktree
+;  (wgo, wsw, wnew, wadd, wroot), Bash-only. Pour en profiter sous bash :
 ;
 ;      source ~/.config/git/bashrc-git.sh
 ;
@@ -104,14 +106,14 @@
 	state = !git fetch --prune --tags && clear && git branch -vv && git status
 	logn  = !git log --oneline -n
 	sl    = stash list --pretty='%C(yellow)%gd%Creset %s %Cgreen(%cr)%Creset'
-	ll    = !git-ll
-	tree  = !git-tree
-	resume = !git-resume
-	resume-branch = !git-resume-branch
+	ll    = "!\"$HOME\"/.config/git/bin/git-ll"
+	tree  = "!\"$HOME\"/.config/git/bin/git-tree"
+	resume = "!\"$HOME\"/.config/git/bin/git-resume"
+	resume-branch = "!\"$HOME\"/.config/git/bin/git-resume-branch"
 
 	# --- Commit & push ---------------------------------------
-	c     = !git-c
-	ce    = !git-ce
+	c     = "!\"$HOME\"/.config/git/bin/git-c"
+	ce    = "!\"$HOME\"/.config/git/bin/git-ce"
 	wip   = !git add --all && git commit -m 'chore: wip' && git p
 	amend = !git add --all && git commit --amend --no-edit
 	afp   = !git amend && git fp
@@ -119,12 +121,12 @@
 	fp    = !git push origin $(git rev-parse --abbrev-ref HEAD) --force-with-lease
 	drop  = !git reset --hard HEAD && git clean -fd
 	undo  = reset --soft HEAD~1
-	cp    = !git-cp
+	cp    = "!\"$HOME\"/.config/git/bin/git-cp"
 
 	# --- Branches --------------------------------------------
-	iswitch       = !git-iswitch
-	rename-branch = !git-rename-branch
-	fetch-all     = !git-fetch-all
+	iswitch       = "!\"$HOME\"/.config/git/bin/git-iswitch"
+	rename-branch = "!\"$HOME\"/.config/git/bin/git-rename-branch"
+	fetch-all     = "!\"$HOME\"/.config/git/bin/git-fetch-all"
 
 	# --- Rebase ----------------------------------------------
 	rom = !git fetch --all && git rebase $(git rev-parse --abbrev-ref origin/HEAD)
@@ -134,54 +136,58 @@
 	rc  = rebase --continue
 	rs  = rebase --skip
 	ra  = rebase --abort
-	rebase-source = !git-rebase-source
+	rebase-source = "!\"$HOME\"/.config/git/bin/git-rebase-source"
 
 	# --- Cherry-pick -----------------------------------------
-	cpick      = !git-cpick
-	cpick-move = !git-cpick-move
+	cpick      = "!\"$HOME\"/.config/git/bin/git-cpick"
+	cpick-move = "!\"$HOME\"/.config/git/bin/git-cpick-move"
 
 	# --- WIP cleanup & sync ----------------------------------
-	wip-fixup   = !git-wip-fixup
-	cleanup-all = !git-cleanup-all
-	cleanup     = !git-cleanup
-	update-repo = !git-update-repo
-	refresh     = !git-refresh
+	wip-fixup   = "!\"$HOME\"/.config/git/bin/git-wip-fixup"
+	cleanup-all = "!\"$HOME\"/.config/git/bin/git-cleanup-all"
+	cleanup     = "!\"$HOME\"/.config/git/bin/git-cleanup"
+	update-repo = "!\"$HOME\"/.config/git/bin/git-update-repo"
+	refresh     = "!\"$HOME\"/.config/git/bin/git-refresh"
 
 	# --- Git-flow simulation ---------------------------------
-	start = !git-start
+	start = "!\"$HOME\"/.config/git/bin/git-start"
 
 	# --- Pull Requests ---------------------------------------
-	prdevops = !git-prdevops
-	prgithub = !git-prgithub
+	prdevops = "!\"$HOME\"/.config/git/bin/git-prdevops"
+	prgithub = "!\"$HOME\"/.config/git/bin/git-prgithub"
 
 	# --- Worktrees -------------------------------------------
 	w    = !printf 'Worktree aliases:\n  wl   worktree list\n  wp   worktree prune\n  wa   add worktree from existing branch (local/remote)\n  wn   new branch + worktree from a base\n  ws   interactive switcher (prints path)\n  wg   jump to a worktree by branch name (prints path)\n  wst  status overview of all worktrees\n  wpl  pull (ff-only) all worktrees at once\n  wc   prune + remove merged worktrees\n  wr   remove a worktree interactively\n  clone-worktree   clone repo in bare mode + first worktree\n'
 	wl   = worktree list
 	wp   = worktree prune
-	wa   = !git-wadd       # add worktree from existing branch (local/remote)
-	wn   = !git-wnew       # new branch + worktree from a base
-	ws   = !git-wswitch    # interactive switcher (prints path)
-	wg   = !git-wgo        # jump to a worktree by branch name (prints path)
-	wst  = !git-wstatus    # status overview of all worktrees
-	wpl  = !git-wpull      # pull all worktrees (fetch + ff-only)
-	wc   = !git-wclean     # prune + remove merged worktrees
-	wr   = !git-wremove    # remove a worktree interactively
-	clone-worktree = !git-clone-worktree
+	wa   = "!\"$HOME\"/.config/git/bin/git-wadd"       # add worktree from existing branch (local/remote)
+	wn   = "!\"$HOME\"/.config/git/bin/git-wnew"       # new branch + worktree from a base
+	ws   = "!\"$HOME\"/.config/git/bin/git-wswitch"    # interactive switcher (prints path)
+	wg   = "!\"$HOME\"/.config/git/bin/git-wgo"        # jump to a worktree by branch name (prints path)
+	wst  = "!\"$HOME\"/.config/git/bin/git-wstatus"    # status overview of all worktrees
+	wpl  = "!\"$HOME\"/.config/git/bin/git-wpull"      # pull all worktrees (fetch + ff-only)
+	wc   = "!\"$HOME\"/.config/git/bin/git-wclean"     # prune + remove merged worktrees
+	wr   = "!\"$HOME\"/.config/git/bin/git-wremove"    # remove a worktree interactively
+	clone-worktree = "!\"$HOME\"/.config/git/bin/git-clone-worktree"
+
+	# --- Formatage (fichiers de git status, un par un) -------
+	format     = "!\"$HOME\"/.config/git/bin/git-format"       # API (.cs) puis UI (.ts/.html/.scss/.json)
+	format-api = "!\"$HOME\"/.config/git/bin/git-format-api"   # CSharpier sur les .cs de git status
+	format-ui  = "!\"$HOME\"/.config/git/bin/git-format-ui"    # Prettier sur les .ts/.html/.scss/.json de git status
 
 	# --- Dotnet / Entity Framework ---------------------------
-	csharpier           = !git-csharpier
-	watch-run           = !git-watch-run
-	ef-list-migrations  = !git-ef-list-migrations
-	ef-revert           = !git-ef-revert
-	create-migration    = !git-create-migration
-	apply-migrations    = !git-apply-migrations
+	watch-run           = "!\"$HOME\"/.config/git/bin/git-watch-run"
+	ef-list-migrations  = "!\"$HOME\"/.config/git/bin/git-ef-list-migrations"
+	ef-revert           = "!\"$HOME\"/.config/git/bin/git-ef-revert"
+	create-migration    = "!\"$HOME\"/.config/git/bin/git-create-migration"
+	apply-migrations    = "!\"$HOME\"/.config/git/bin/git-apply-migrations"
 
 	# --- Dotfiles sync ---------------------------------------
-	dsync = !git-dsync
+	dsync = "!\"$HOME\"/.config/git/bin/git-dsync"
 
 	# --- Network & process (Windows / Git Bash) --------------
 	netstat        = !netstat -ano | grep LISTEN
-	kill-listening = !git-kill-listening
+	kill-listening = "!\"$HOME\"/.config/git/bin/git-kill-listening"
 
 [filter "lfs"]
 	smudge   = git-lfs smudge -- %f

@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# git-format-ui
+#   Formate avec Prettier chaque fichier .ts/.html/.scss/.json présent dans
+#   `git status` (modifiés + non suivis), un par un. Re-stage les fichiers qui
+#   étaient déjà dans l'index.
+
+set -euo pipefail
+
+show_help() {
+    cat <<'EOF'
+Usage: git format-ui
+
+Formate avec Prettier (`npx prettier --write`) chaque fichier
+.ts/.html/.scss/.json apparaissant dans `git status`, individuellement.
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+
+mapfile -t files < <(git -c core.quotepath=false status --porcelain \
+    | sed -e 's/^...//' -e 's/.* -> //' \
+    | grep -E '\.(ts|html|scss|json)$' || true)
+
+if [ "${#files[@]}" -eq 0 ]; then
+    echo "format-ui : aucun fichier front (.ts/.html/.scss/.json) dans git status."
+    exit 0
+fi
+
+declare -A staged=()
+while IFS= read -r s; do staged["$s"]=1; done < <(git diff --cached --name-only)
+
+for f in "${files[@]}"; do
+    [ -f "$f" ] || continue
+    echo "→ Prettier : $f"
+    npx prettier --write "$f"
+    [ -n "${staged[$f]:-}" ] && git add "$f"
+done

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# git-format
+#   Lance le formatage API (CSharpier) puis UI (Prettier) sur les fichiers
+#   présents dans `git status`, un par un.
+
+set -euo pipefail
+
+show_help() {
+    cat <<'EOF'
+Usage: git format
+
+Formate les fichiers de `git status` : .cs via CSharpier (format-api) puis
+.ts/.html/.scss/.json via Prettier (format-ui). N'agit que sur les fichiers
+modifiés ou non suivis, un par un.
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+"$SELF_DIR/git-format-api"
+"$SELF_DIR/git-format-ui"

@@ -16,7 +16,7 @@ dotfiles/
 ├── git/
 │   ├── .gitconfig                # Config git principale (versionnée, symlinkée vers ~/.gitconfig)
 │   ├── bashrc-git.sh             # Shell functions chargées dans le shell interactif (wsw, wgo, wnew, wadd, wroot)
-│   ├── bin/                      # Scripts git-* sur le PATH (symlinkés vers ~/.config/git/bin)
+│   ├── bin/                      # Scripts git-* (symlinkés vers ~/.config/git/bin), référencés par chemin absolu dans les alias
 │   │   ├── git-wadd              # ┐
 │   │   ├── git-wnew              # │ Workflow worktree
 │   │   ├── git-wswitch           # │
@@ -41,7 +41,7 @@ Quand tu ajoutes un nouveau script : il va dans `git/bin/`. Quand tu ajoutes un 
 
 ## 2. Conventions de nommage
 
-**Scripts dans `git/bin/`** : préfixe `git-` obligatoire, kebab-case. Git expose automatiquement `git-foo` comme `git foo` tant que le fichier est exécutable et sur le PATH. Exemples : `git-wadd`, `git-dsync`, `git-clone-worktree`.
+**Scripts dans `git/bin/`** : préfixe `git-` obligatoire, kebab-case. Ils sont invoqués depuis la section `[alias]` par chemin absolu `$HOME` (voir §5), donc sans dépendre du PATH. Exemples : `git-wadd`, `git-dsync`, `git-clone-worktree`.
 
 **Scripts worktree** : préfixe `git-w`. Les sept scripts du workflow sont `git-wadd`, `git-wnew`, `git-wswitch`, `git-wgo`, `git-wstatus`, `git-wclean`, `git-wremove`.
 
@@ -138,14 +138,21 @@ Le fichier versionné est `git/.gitconfig`. Il est symlinkée vers `~/.gitconfig
 
 **Alias inline vs script externe** : si la commande tient en une ligne sans logique conditionnelle, c'est un alias inline. Sinon c'est un script dans `git/bin/`.
 
+**Référencer un script externe par chemin absolu `$HOME` (règle importante)** : un alias qui appelle un script de `git/bin/` ne doit **pas** utiliser `!git-x` (qui suppose `~/.config/git/bin` présent dans le `$PATH`). Il doit référencer le script par son chemin absolu basé sur `$HOME`.
+
 ```ini
 # Alias inline — OK
 st = status
 
 # Trop complexe pour un alias — faire un script
 # mauvais: montruc = "!f() { if ...; then ...; fi; }; f"
-# bon:     montruc = !git-montruc
+
+# Script externe — TOUJOURS chemin absolu $HOME (jamais !git-x)
+# mauvais: montruc = !git-montruc                          # dépend du PATH → KO sous PowerShell/cmd
+# bon:     montruc = "!\"$HOME\"/.config/git/bin/git-montruc"
 ```
+
+Pourquoi : un alias `!` est toujours exécuté par le `sh` embarqué de Git, quel que soit le shell parent (PowerShell, cmd, bash), et `$HOME` y est défini. Référencer le script par chemin absolu le rend trouvable **sans aucune entrée PATH ni profil shell** — la config git versionnée suffit, et les alias se comportent à l'identique sous PowerShell, cmd et bash. Le `$PATH` (export dans `bashrc-extra.sh`) n'est plus requis que pour les shell functions `cd` worktree (`wgo`, `wsw`…), qui restent Bash-only.
 
 **Ne jamais mettre dans `git/.gitconfig`** :
 
@@ -257,7 +264,7 @@ Ne réimplémente pas ces fonctions.
 **Quand on te demande "ajoute une fonctionnalité X"**, la réponse par défaut est :
 
 1. Script `git/bin/git-x` (copié depuis le squelette section 3)
-2. Alias court dans `git/.gitconfig` section `[alias]` qui appelle `!git-x`
+2. Alias court dans `git/.gitconfig` section `[alias]`, référencé par chemin absolu : `x = "!\"$HOME\"/.config/git/bin/git-x"` (voir §5 — jamais `!git-x`, qui dépend du PATH)
 3. Si le script doit `cd` : ajouter une shell function wrapper dans `git/bashrc-git.sh`
 4. `chmod +x git/bin/git-x`
 5. Vérifications de la section 6
@@ -272,7 +279,14 @@ Ne réimplémente pas ces fonctions.
 
 **Ne pas ajouter un dossier au top-level** sans mettre à jour `install.sh` (pour créer les symlinks si nécessaire) et `uninstall.sh` (pour les retirer).
 
-**Ne pas faire dépendre un script `git/bin/` d'un autre script `git/bin/`** directement. Si deux scripts partagent de la logique, cette logique va dans `git/lib/wt-common.sh`. Exception acceptée : un script peut appeler un autre script git via `git <commande>` (pas via `git-<commande>` directement) car c'est l'interface publique.
+**Ne pas faire dépendre un script `git/bin/` d'un autre pour de la logique partagée** : celle-ci va dans `git/lib/wt-common.sh`. Si un script doit néanmoins invoquer un script frère, le faire par **chemin auto-localisé** — les scripts ne sont plus résolus via le PATH :
+
+```bash
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+"$SELF_DIR/git-sibling" ...
+```
+
+(Voir `git-format` et `git-wgo`.) Appeler `git <alias>` reste possible uniquement si un alias correspondant existe dans `.gitconfig`.
 
 **Ne pas utiliser `eval`** pour construire des commandes. Utiliser des tableaux bash :
 

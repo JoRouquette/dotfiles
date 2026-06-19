@@ -5,7 +5,8 @@
 #   Affiche le chemin sur stdout pour `cd "$(git wgo <branch>)"`.
 
 set -euo pipefail
-source "$(cd "$(dirname "$0")" && pwd)/../lib/wt-common.sh"
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SELF_DIR/../lib/wt-common.sh"
 
 usage() {
     cat >&2 <<EOF
@@ -34,7 +35,7 @@ if git show-ref --verify --quiet "refs/heads/$BRANCH" \
    || git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
     warn "Pas de worktree pour '$BRANCH' mais la branche existe."
     if confirm "Créer le worktree maintenant ?" y; then
-        git-wadd "$BRANCH" >/dev/null
+        "$SELF_DIR/git-wadd" "$BRANCH" >/dev/null
         printf '%s\n' "$(find_worktree_by_branch "$BRANCH")"
         exit 0
     fi
@@ -44,7 +45,7 @@ fi
 # Cas 3 : branche inexistante → proposer wnew
 warn "Branche '$BRANCH' introuvable (ni locale, ni distante)."
 if confirm "Créer une nouvelle branche + worktree ?" n; then
-    git-wnew "$BRANCH" >/dev/null
+    "$SELF_DIR/git-wnew" "$BRANCH" >/dev/null
     printf '%s\n' "$(find_worktree_by_branch "$BRANCH")"
     exit 0
 fi
