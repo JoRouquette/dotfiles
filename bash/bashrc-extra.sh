@@ -1,23 +1,19 @@
 # ============================================================
-# ~/.projects/dotfiles/bash/bashrc-extra.sh
+# <repo dotfiles>/bash/bashrc-extra.sh
 # Fragment sourcé par ~/.bashrc.
 # Ajouté automatiquement par `install.sh` avec un marker pour
 # pouvoir être détecté/mis à jour.
 # ============================================================
 
-# Dossier racine du repo dotfiles (utilisé par git-dsync)
-export DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.projects/dotfiles}"
-
-# Config privée versionnée (optionnel, pour git-dsync multi-repo)
-export DOTFILES_CONFIG_DIR="${DOTFILES_CONFIG_DIR:-$HOME/.projects/dotfiles-config}"
-
-# Liste des repos à synchroniser automatiquement (séparés par |)
-# Inclut dotfiles-config s'il existe
-if [ -d "$DOTFILES_CONFIG_DIR/.git" ]; then
-    export DOTFILES_SYNC_REPOS="${DOTFILES_SYNC_REPOS:-$DOTFILES_DIR|$DOTFILES_CONFIG_DIR}"
-else
-    export DOTFILES_SYNC_REPOS="${DOTFILES_SYNC_REPOS:-$DOTFILES_DIR}"
-fi
+# Les repos à synchroniser sont déterminés par git-dsync lui-même (le repo
+# qui le contient, plus dotfiles-config s'il est voisin). Ce fragment n'exporte
+# donc ni DOTFILES_DIR, ni DOTFILES_CONFIG_DIR, ni DOTFILES_SYNC_REPOS : les
+# poser à la main reste possible pour forcer d'autres repos.
+# _dotfiles_repo ne sert qu'au trap EXIT ci-dessous.
+_dotfiles_src="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || realpath "${BASH_SOURCE[0]}" 2>/dev/null || true)"
+_dotfiles_repo=""
+[ -n "$_dotfiles_src" ] && _dotfiles_repo="$(cd "$(dirname "$_dotfiles_src")/.." && pwd)"
+unset _dotfiles_src
 
 # Scripts git-* externes sur le PATH
 case ":$PATH:" in
@@ -36,7 +32,7 @@ _dotfiles_sync_on_exit() {
     # Skip si pas dans un terminal interactif
     [[ $- == *i* ]] || return 0
     # Skip si le repo n'existe pas (bootstrap pas encore fait)
-    [ -d "$DOTFILES_DIR/.git" ] || return 0
+    [ -d "${DOTFILES_DIR:-$_dotfiles_repo}/.git" ] || return 0
     # Lance en détaché, silencieux
     ( git dsync --quiet >/dev/null 2>&1 & disown ) 2>/dev/null
 }

@@ -13,12 +13,15 @@
 ;  (PowerShell, cmd, bash). Détails dans CONTRIBUTING.md §5.
 ;
 ;  Le PATH et les shell functions ne servent QUE pour les `cd` worktree
-;  (wgo, wsw, wnew, wadd, wroot), Bash-only. Pour en profiter sous bash :
+;  (wgo, wsw, wnew, wadd, wroot). Pour en profiter sous bash :
 ;
 ;      source ~/.config/git/bashrc-git.sh
 ;
-;  IDENTITÉ : configurer dans ~/.projects/dotfiles-config/gitconfig.local
-;             ou ~/.gitconfig.local (voir README.md)
+;  et sous PowerShell : . <repo dotfiles>\windows\git-worktree.ps1
+;
+;  IDENTITÉ : configurer dans <dossier voisin>/dotfiles-config/gitconfig.local
+;             ou ~/.gitconfig.local (voir README.md). Seuls les deux
+;             emplacements du bloc [include] en fin de fichier sont lus.
 ; ============================================================
 
 [user]
@@ -195,8 +198,11 @@
 	required = true
 	clean    = git-lfs clean -- %f
 
-[remote "origin"]
-	fetch = +refs/heads/*:refs/remotes/origin/*
+; NE PAS déclarer ici de [remote "origin"] avec un refspec `fetch`.
+; `git clone` écrit déjà ce refspec dans la config locale du dépôt créé ;
+; une déclaration globale en ajoute un second, identique, et git s'arrête sur
+;   fatal: multiple updates for ref 'refs/remotes/origin/<branche>' not allowed
+; Constaté le 2026-09-08 : plus aucun clone ne fonctionnait sur la machine.
 
 ; ============================================================
 ;  Personnalisation (ordre de priorité : le dernier gagne)
@@ -207,8 +213,16 @@
 ;  Pour les collègues : créer ~/.gitconfig.local depuis le template
 ;  Pour toi : utiliser dotfiles-config + ~/.gitconfig.local si besoin
 ; ============================================================
+; Un include vers un fichier absent est ignoré sans erreur : on déclare les
+; deux emplacements possibles du repo dotfiles-config.
 [include]
 	; Config privée versionnée (optionnel)
 	path = ~/.projects/dotfiles-config/gitconfig.local
+	path = ~/.projects/repos/personal/dotfiles-config/gitconfig.local
 	; Config locale non versionnée (fallback/override)
 	path = ~/.gitconfig.local
+
+; Pas de `http.sslBackend` ici : `schannel` n'existe que sous Git for Windows,
+; dont l'installeur le pose déjà au niveau system. Partagé, il casserait tout
+; HTTPS sous WSL, Linux et macOS. Un réglage propre à une machine va dans
+; ~/.gitconfig.local.

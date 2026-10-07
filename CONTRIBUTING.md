@@ -31,11 +31,12 @@ dotfiles/
 ├── bash/
 │   └── bashrc-extra.sh           # Fragment injecté dans ~/.bashrc (PATH, source bashrc-git.sh, trap EXIT)
 └── windows/
+    ├── git-worktree.ps1          # Pendant PowerShell de bashrc-git.sh (wsw, wgo, wnew, wadd, wroot)
     ├── Register-AutoSyncTask.ps1 # Tâche planifiée Windows (sync à 12h et 17h)
     └── Unregister-AutoSyncTask.ps1
 ```
 
-Quand tu ajoutes un nouveau script : il va dans `git/bin/`. Quand tu ajoutes un helper interne réutilisable : il va dans `git/lib/wt-common.sh`. Quand tu ajoutes une shell function qui doit modifier le shell appelant (`cd`, variable d'environnement) : elle va dans `git/bashrc-git.sh`.
+Quand tu ajoutes un nouveau script : il va dans `git/bin/`. Quand tu ajoutes un helper interne réutilisable : il va dans `git/lib/wt-common.sh`. Quand tu ajoutes une shell function qui doit modifier le shell appelant (`cd`, variable d'environnement) : elle va dans `git/bashrc-git.sh` **et** son pendant PowerShell dans `windows/git-worktree.ps1`, qui appelle l'alias git et non `git <script>` (sous PowerShell, `~/.config/git/bin` n'est pas dans le PATH). Les fichiers `.ps1` sont enregistrés en UTF-8 **avec BOM**, sinon PowerShell 5.1 les lit en ANSI.
 
 ---
 
@@ -152,7 +153,7 @@ st = status
 # bon:     montruc = "!\"$HOME\"/.config/git/bin/git-montruc"
 ```
 
-Pourquoi : un alias `!` est toujours exécuté par le `sh` embarqué de Git, quel que soit le shell parent (PowerShell, cmd, bash), et `$HOME` y est défini. Référencer le script par chemin absolu le rend trouvable **sans aucune entrée PATH ni profil shell** — la config git versionnée suffit, et les alias se comportent à l'identique sous PowerShell, cmd et bash. Le `$PATH` (export dans `bashrc-extra.sh`) n'est plus requis que pour les shell functions `cd` worktree (`wgo`, `wsw`…), qui restent Bash-only.
+Pourquoi : un alias `!` est toujours exécuté par le `sh` embarqué de Git, quel que soit le shell parent (PowerShell, cmd, bash), et `$HOME` y est défini. Référencer le script par chemin absolu le rend trouvable **sans aucune entrée PATH ni profil shell** — la config git versionnée suffit, et les alias se comportent à l'identique sous PowerShell, cmd et bash. Le `$PATH` (export dans `bashrc-extra.sh`) n'est plus requis que pour les shell functions `cd` worktree (`wgo`, `wsw`…), dont le pendant PowerShell (`windows/git-worktree.ps1`) passe par les alias.
 
 **Ne jamais mettre dans `git/.gitconfig`** :
 
@@ -265,7 +266,7 @@ Ne réimplémente pas ces fonctions.
 
 1. Script `git/bin/git-x` (copié depuis le squelette section 3)
 2. Alias court dans `git/.gitconfig` section `[alias]`, référencé par chemin absolu : `x = "!\"$HOME\"/.config/git/bin/git-x"` (voir §5 — jamais `!git-x`, qui dépend du PATH)
-3. Si le script doit `cd` : ajouter une shell function wrapper dans `git/bashrc-git.sh`
+3. Si le script doit `cd` : ajouter une shell function wrapper dans `git/bashrc-git.sh` et son pendant dans `windows/git-worktree.ps1` (via l'alias)
 4. `chmod +x git/bin/git-x`
 5. Vérifications de la section 6
 

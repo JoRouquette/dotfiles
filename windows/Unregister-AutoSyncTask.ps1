@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Supprime la tâche planifiée "DotfilesAutoSync-Timer".
     Supprime aussi l'ancienne tâche "DotfilesAutoSync-Logoff" si elle existe encore.

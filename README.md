@@ -51,6 +51,7 @@ dotfiles/
 ├── bash/
 │   └── bashrc-extra.sh               ← fragment ajouté à ~/.bashrc
 └── windows/
+    ├── git-worktree.ps1              ← fonctions cd worktree pour PowerShell
     ├── Register-AutoSyncTask.ps1     ← sync planifiée (12h/17h)
     ├── Setup-StartupSync.ps1         ← alternative sans admin
     └── Unregister-AutoSyncTask.ps1
@@ -119,6 +120,31 @@ git aliases            # liste tous les alias
 which git-dsync        # => ~/.config/git/bin/git-dsync
 ```
 
+> Le repo peut vivre ailleurs que dans `~/.projects/dotfiles` :
+> `bashrc-extra.sh` et `git-dsync` déduisent son emplacement du leur, et
+> `git dsync` synchronise aussi `dotfiles-config` s'il est **à côté**. Après
+> un déplacement :
+>
+> - relancer `./install.sh --force --no-bashrc` pour refaire les liens
+>   `~/.config/git/*` ;
+> - corriger le chemin du bloc `dotfiles` dans `~/.bashrc`, et celui de
+>   `git-worktree.ps1` dans le profil PowerShell ;
+> - l'identité (`dotfiles-config/gitconfig.local`) n'est lue par git qu'aux
+>   deux emplacements du bloc `[include]` de `git/.gitconfig` : ailleurs,
+>   l'inclure depuis `~/.gitconfig.local`.
+
+### Étape 3 bis : PowerShell (Windows)
+
+Les alias (`git wst`, `git dsync`, `git c`, …) marchent tels quels sous
+PowerShell : git exécute leurs scripts avec son propre bash. Seules les
+fonctions qui font un `cd` (`wsw`, `wgo`, `wnew`, `wadd`, `wroot`) ont besoin
+d'être chargées, depuis le profil (`$PROFILE.CurrentUserAllHosts`) :
+
+```powershell
+$f = "<repo dotfiles>\windows\git-worktree.ps1"   # chemin réel du repo
+if (Test-Path -LiteralPath $f) { . $f } else { Write-Warning "Introuvable : $f" }
+```
+
 ### Étape 4 : Active la sync automatique (Windows)
 
 Voir la section [Synchronisation automatique](#synchronisation-automatique-windows) ci-dessous.
@@ -160,7 +186,7 @@ planifiée, même trap EXIT).
 
 ```bash
 git clone git@github.com:<TON_USER>/dotfiles-config.git ~/.projects/dotfiles-config
-source ~/.bashrc   # détecte le repo et configure DOTFILES_SYNC_REPOS
+source ~/.bashrc   # git dsync le trouvera seul s'il est voisin du repo dotfiles
 ```
 
 ### Chaîne d'include

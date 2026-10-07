@@ -5,14 +5,13 @@
 #   Silencieux si rien à faire. Ne laisse jamais le repo en mauvais état.
 #
 #   Par défaut synchronise tous les repos listés dans $DOTFILES_SYNC_REPOS
-#   (séparés par :), ou $DOTFILES_DIR, ou ~/.projects/dotfiles.
+#   (séparés par |). À défaut : $DOTFILES_DIR, ou le repo qui contient ce
+#   script, plus dotfiles-config s'il est un repo git voisin.
 #
 #   Logs dans $HOME/.dotfiles-sync.log (rotation manuelle si besoin).
 
 set -euo pipefail
 
-# ---- Config par défaut --------------------------------------
-DEFAULT_REPO="${DOTFILES_DIR:-$HOME/.projects/dotfiles}"
 LOG_FILE="${DOTFILES_SYNC_LOG:-$HOME/.dotfiles-sync.log}"
 PUSH=true
 QUIET=false
@@ -32,7 +31,8 @@ Synchronise les repos dotfiles (commit + rebase + push).
 Idempotent, silencieux si rien à faire.
 
 Par défaut synchronise tous les repos listés dans \$DOTFILES_SYNC_REPOS
-(séparés par :), ou \$DOTFILES_DIR, ou ~/.projects/dotfiles.
+(séparés par |). À défaut : \$DOTFILES_DIR, ou le repo qui contient ce
+script, plus dotfiles-config s'il est un repo git voisin.
 
 Options :
   --quiet        Sortie minimale (pour tâche planifiée).
@@ -148,13 +148,58 @@ sync_one_repo() {
     fi
 }
 
+# ---- Repos par défaut ---------------------------------------
+# Sans cible explicite (--repo, DOTFILES_SYNC_REPOS, DOTFILES_DIR), le repo se
+# déduit de l'emplacement réel du script (git/bin/git-dsync), symlinks résolus :
+# c'est le chemin normal dans tous les shells, aucun chemin d'installation
+# n'est supposé. dotfiles-config est pris s'il est un repo git voisin.
+resolve_default_repos() {
+    local script_path script_repo default_repo config_repo
+
+    if [ -n "${DOTFILES_DIR:-}" ]; then
+        default_repo="$DOTFILES_DIR"
+    else
+        script_path="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || realpath "${BASH_SOURCE[0]}" 2>/dev/null || true)"
+        script_repo=""
+        [ -n "$script_path" ] && script_repo="$(cd "$(dirname "$script_path")/../.." && pwd)"
+
+        # Garde : ne jamais commiter ni pousser un dossier qui n'est pas avec
+        # certitude le repo dotfiles (installation par copie dans un ~/.config
+        # versionné, readlink absent…). Les marqueurs testés n'existent qu'à la
+        # racine du repo. Journalisé même en --quiet, pour qu'une tâche
+        # planifiée ne s'arrête pas sans trace.
+        if [ -z "$script_repo" ] || [ ! -d "$script_repo/.git" ] \
+            || [ ! -f "$script_repo/install.sh" ] || [ ! -f "$script_repo/bash/bashrc-extra.sh" ]; then
+            printf '[%s] ERROR: repo dotfiles introuvable depuis %s ; définir DOTFILES_DIR ou utiliser --repo.\n' \
+                "$(ts)" "${BASH_SOURCE[0]}" >> "$LOG_FILE"
+            echo "git-dsync : repo dotfiles introuvable ; définir DOTFILES_DIR ou utiliser --repo." >&2
+            exit 1
+        fi
+        default_repo="$script_repo"
+    fi
+
+    config_repo="${DOTFILES_CONFIG_DIR:-$(dirname "$default_repo")/dotfiles-config}"
+    if [ -d "$config_repo/.git" ]; then
+        DEFAULT_REPOS="$default_repo|$config_repo"
+    else
+        # dotfiles-config est optionnel : son absence n'est pas journalisée.
+        # S'il vit ailleurs qu'à côté, poser DOTFILES_CONFIG_DIR.
+        DEFAULT_REPOS="$default_repo"
+    fi
+}
+
 # ---- Main : boucle sur tous les repos -----------------------
 if [ -n "$SINGLE_REPO" ]; then
     # Mode single repo (--repo)
     sync_one_repo "$SINGLE_REPO"
 else
     # Mode multi-repo
-    repos_list="${DOTFILES_SYNC_REPOS:-$DEFAULT_REPO}"
+    if [ -n "${DOTFILES_SYNC_REPOS:-}" ]; then
+        repos_list="$DOTFILES_SYNC_REPOS"
+    else
+        resolve_default_repos
+        repos_list="$DEFAULT_REPOS"
+    fi
     IFS='|' read -ra repos <<< "$repos_list"
 
     for repo in "${repos[@]}"; do

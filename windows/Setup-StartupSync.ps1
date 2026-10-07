@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Configure la synchronisation automatique des dotfiles au démarrage Windows.
     Alternative sans droits administrateur à Register-AutoSyncTask.ps1.

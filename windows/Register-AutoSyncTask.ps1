@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Enregistre la tâche planifiée Windows pour synchroniser
     le repo dotfiles automatiquement.
