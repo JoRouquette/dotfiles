@@ -206,23 +206,27 @@ Le repo se synchronise automatiquement grâce à :
 1. **Trap EXIT** : `git dsync` à chaque fermeture de terminal (toujours actif)
 2. **Tâche planifiée** : sync à 12h et 17h (optionnel, nécessite configuration)
 
-### Option 1 : Tâche planifiée (⚠️ Nécessite droits administrateur)
-
-> **Note** : Cette méthode nécessite des droits administrateur pour
-> enregistrer une tâche avec le mode "S4U" (Service for User, invisible).
-> Si tu n'as pas les droits admin, utilise l'Option 2 ci-dessous.
+### Option 1 : Tâche planifiée (recommandé)
 
 ```powershell
-# Ouvre PowerShell en tant qu'administrateur, puis :
+# PowerShell normal (pas besoin d'admin)
 powershell -ExecutionPolicy Bypass `
-  -File "$env:USERPROFILE\.projects\dotfiles\windows\Register-AutoSyncTask.ps1"
+  -File "<repo dotfiles>\windows\Register-AutoSyncTask.ps1"
 ```
 
-Crée une tâche `DotfilesAutoSync-Timer` qui s'exécute à 12h et 17h chaque jour.
+Crée une tâche `DotfilesAutoSync-Timer` qui s'exécute à 12h et 17h chaque
+jour, dans ta session ouverte (mode « Interactive »), fenêtre masquée. Si le
+poste était éteint ou en veille, elle est rattrapée à l'ouverture de session.
 
-### Option 2 : Sync au démarrage Windows (sans droits admin)
+> **Pourquoi pas S4U** : sur un poste joint à un domaine, une tâche S4U ne
+> démarre pas sans contrôleur de domaine joignable (erreur `0x8007051F`
+> hors réseau d'entreprise ou sans VPN). La synchro d'un repo personnel ne
+> doit dépendre d'aucun réseau. Une ancienne tâche S4U enregistrée en admin
+> ne peut être remplacée que depuis une console admin, une seule fois.
 
-Si tu n'as pas les droits administrateur, utilise le script de démarrage :
+### Option 2 : Sync au démarrage Windows
+
+Alternative à la tâche planifiée : un raccourci de démarrage.
 
 ```powershell
 # PowerShell normal (pas besoin d'admin)
@@ -370,12 +374,13 @@ sécurité → Pour les développeurs → ON. Puis relance `install.sh --force`.
 
 ### "La tâche planifiée 'DotfilesAutoSync-Timer' ne s'enregistre pas"
 
-**Cause probable** : droits administrateur requis pour le mode S4U.
+**Cause probable** : une ancienne tâche du même nom, enregistrée depuis une
+console admin (ancienne version S4U), ne peut pas être supprimée sans droits.
 
 **Solutions** :
 
-1. Lance PowerShell **en tant qu'administrateur** et réessaie
-2. Ou utilise l'alternative sans admin :
+1. Relance le script une fois **en tant qu'administrateur**
+2. Ou utilise l'alternative du raccourci de démarrage :
    ```powershell
    powershell -ExecutionPolicy Bypass `
      -File ~\.projects\dotfiles\windows\Setup-StartupSync.ps1
@@ -388,8 +393,11 @@ fréquentes :
 
 - Le chemin de `bash.exe` n'est pas bon → relance
   `Register-AutoSyncTask.ps1 -BashPath "C:\..."`.
-- La session est verrouillée et la tâche est sur "Run only when user is
-  logged on" → c'est normal, elle reprend au déverrouillage.
+- Aucune session n'était ouverte à l'heure prévue → c'est normal, elle part
+  à la prochaine ouverture de session.
+- Erreur `0x8007051F` (« aucun serveur d'ouverture de session ») → la tâche
+  est encore en S4U : relance `Register-AutoSyncTask.ps1` (une fois en admin
+  si l'ancienne tâche a été enregistrée en admin).
 
 ### "git dsync reste coincé sur un rebase"
 

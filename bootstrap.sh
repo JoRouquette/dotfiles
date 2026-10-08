@@ -259,8 +259,8 @@ if $IS_WINDOWS; then
 
 3. ${C_G}Active la sync automatique Windows :${C_R}
 
-   ${C_Y}Option A — Tâche planifiée (nécessite droits admin) :${C_R}
-     # Lance PowerShell en tant qu'administrateur, puis :
+   ${C_Y}Option A — Tâche planifiée (recommandé, sans droits admin) :${C_R}
+     # PowerShell normal :
      powershell -ExecutionPolicy Bypass \`
        -File "\$env:USERPROFILE\\.projects\\dotfiles\\windows\\Register-AutoSyncTask.ps1"
 

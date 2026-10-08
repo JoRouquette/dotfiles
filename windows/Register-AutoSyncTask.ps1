@@ -5,26 +5,26 @@
 
 .DESCRIPTION
     Crée 1 tâche "DotfilesAutoSync-Timer" qui s'exécute :
-      - À 12:00 et 17:00 chaque jour
-      - En arrière-plan (invisible, pas de fenêtre)
+      - À 12:00 et 17:00 chaque jour (rattrapée à l'ouverture de session
+        si le poste était éteint ou en veille)
+      - Dans la session ouverte de l'utilisateur (mode "Interactive"),
+        sans droits administrateur
 
-    La tâche lance :
+    La tâche lance, fenêtre masquée :
         bash.exe -lc 'git dsync --quiet'
 
     Les logs vont dans %USERPROFILE%\.dotfiles-sync.log
 
-    ⚠️  IMPORTANT : Cette méthode nécessite des droits administrateur
-    pour enregistrer une tâche avec le mode "S4U" (Service for User).
-    
-    Si vous n'avez pas les droits admin, utilisez plutôt :
-        Setup-StartupSync.ps1
-    qui ajoute un raccourci dans le dossier Startup (sans admin).
+    Pourquoi pas le mode "S4U" : sur un poste joint à un domaine, une tâche
+    S4U ne démarre pas sans contrôleur de domaine joignable (erreur
+    0x8007051F hors réseau d'entreprise ou sans VPN). La synchro d'un repo
+    personnel ne doit dépendre d'aucun réseau. Contrepartie : la tâche ne
+    tourne que lorsqu'une session est ouverte.
 
 .PARAMETER BashPath
     Chemin vers bash.exe. Détecté automatiquement si absent.
 
 .EXAMPLE
-    # En tant qu'administrateur :
     powershell -ExecutionPolicy Bypass -File .\Register-AutoSyncTask.ps1
 
 .EXAMPLE
@@ -33,8 +33,8 @@
       -BashPath "C:\Git\bin\bash.exe"
 
 .NOTES
-    Requiert des droits administrateur pour le mode S4U.
-    Alternative sans admin : Setup-StartupSync.ps1
+    Aucun droit administrateur requis, sauf pour remplacer une ancienne
+    tâche enregistrée depuis une console admin (ancienne version S4U).
 #>
 
 [CmdletBinding()]
@@ -44,36 +44,17 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# --- Vérification des droits admin ---
-$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-
-if (-not $isAdmin) {
-    Write-Host ""
-    Write-Host "  ⚠️  ATTENTION : Ce script nécessite des droits administrateur." -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "  Le mode 'S4U' (Service for User) permet d'exécuter la tâche" -ForegroundColor Gray
-    Write-Host "  en arrière-plan sans fenêtre visible, mais requiert les droits admin." -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "  Options :" -ForegroundColor Cyan
-    Write-Host "    1. Relancez PowerShell en tant qu'administrateur"
-    Write-Host "    2. Utilisez l'alternative sans admin :"
-    Write-Host "       powershell -ExecutionPolicy Bypass ``" -ForegroundColor Green
-    Write-Host "         -File `"$PSScriptRoot\Setup-StartupSync.ps1`"" -ForegroundColor Green
-    Write-Host ""
-    exit 1
-}
-
 # --- Détection automatique de bash.exe si non fourni ---
 if (-not $BashPath) {
     $candidates = @(
+        "$env:ProgramFiles\Git\usr\bin\bash.exe",
+        "$env:ProgramFiles\Git\bin\bash.exe",
         "$env:LOCALAPPDATA\Programs\Git\usr\bin\bash.exe",
-        "$env:LOCALAPPDATA\Programs\Git\bin\bash.exe",
-        "C:\Program Files\Git\usr\bin\bash.exe",
-        "C:\Program Files\Git\bin\bash.exe"
+        "$env:LOCALAPPDATA\Programs\Git\bin\bash.exe"
     )
     $BashPath = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
     if (-not $BashPath) {
-        Write-Error "bash.exe introuvable. Précise -BashPath avec le bon chemin (ex: $env:LOCALAPPDATA\Programs\Git\usr\bin\bash.exe)."
+        Write-Error "bash.exe introuvable. Précise -BashPath avec le bon chemin (ex: $env:ProgramFiles\Git\usr\bin\bash.exe)."
         exit 1
     }
     Write-Host "  bash.exe détecté : $BashPath"
@@ -86,24 +67,25 @@ if (-not (Test-Path $BashPath)) {
 
 $TimerTaskName  = "DotfilesAutoSync-Timer"
 $Description    = "Synchronise le repo dotfiles (commit + push) automatiquement à 12h et 17h."
+$UserId         = "$env:USERDOMAIN\$env:USERNAME"
 
-# Commande bash à exécuter : -l pour charger le PATH (et donc git-dsync)
-$BashArgs = "-lc `"git dsync --quiet`""
+# bash est lancé par un PowerShell masqué : une tâche "Interactive" ouvre
+# sinon une console visible. -l charge le PATH (et donc git-dsync).
+$Command = "& '$BashPath' -lc 'git dsync --quiet'"
 
 Write-Host ""
 Write-Host "Enregistrement de la tâche planifiée 'DotfilesAutoSync'" -ForegroundColor Cyan
 Write-Host "  bash.exe      : $BashPath"
 Write-Host "  Horaires      : 12:00 et 17:00"
-Write-Host "  Utilisateur   : $env:USERNAME"
-Write-Host "  Mode          : arrière-plan (invisible)"
+Write-Host "  Utilisateur   : $UserId"
+Write-Host "  Mode          : session ouverte (Interactive), fenêtre masquée"
 Write-Host ""
 
-# --- Action commune ---
 $Action = New-ScheduledTaskAction `
-    -Execute $BashPath `
-    -Argument $BashArgs
+    -Execute "powershell.exe" `
+    -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -Command `"$Command`"" `
+    -WorkingDirectory $env:USERPROFILE
 
-# --- Paramètres communs ---
 $Settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
@@ -111,10 +93,10 @@ $Settings = New-ScheduledTaskSettingsSet `
     -MultipleInstances IgnoreNew `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
 
-# Exécution sous le user courant en arrière-plan (S4U = invisible, pas de fenêtre)
+# Session ouverte de l'utilisateur : aucun contrôleur de domaine requis.
 $Principal = New-ScheduledTaskPrincipal `
-    -UserId $env:USERNAME `
-    -LogonType S4U `
+    -UserId $UserId `
+    -LogonType Interactive `
     -RunLevel Limited
 
 # ============================================================
@@ -123,16 +105,21 @@ $Principal = New-ScheduledTaskPrincipal `
 $Trigger12h = New-ScheduledTaskTrigger -Daily -At "12:00"
 $Trigger17h = New-ScheduledTaskTrigger -Daily -At "17:00"
 
-# Supprime l'ancienne si présente
-if (Get-ScheduledTask -TaskName $TimerTaskName -ErrorAction SilentlyContinue) {
-    Unregister-ScheduledTask -TaskName $TimerTaskName -Confirm:$false
-    Write-Host "  Ancienne tâche $TimerTaskName supprimée."
-}
-
-# Supprime aussi l'ancienne tâche Logoff si elle existe encore
-if (Get-ScheduledTask -TaskName "DotfilesAutoSync-Logoff" -ErrorAction SilentlyContinue) {
-    Unregister-ScheduledTask -TaskName "DotfilesAutoSync-Logoff" -Confirm:$false
-    Write-Host "  Ancienne tâche DotfilesAutoSync-Logoff supprimée."
+foreach ($OldTask in @($TimerTaskName, "DotfilesAutoSync-Logoff")) {
+    if (Get-ScheduledTask -TaskName $OldTask -ErrorAction SilentlyContinue) {
+        try {
+            Unregister-ScheduledTask -TaskName $OldTask -Confirm:$false
+            Write-Host "  Ancienne tâche $OldTask supprimée."
+        }
+        catch {
+            Write-Host ""
+            Write-Host "  Impossible de supprimer l'ancienne tâche $OldTask : $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "  Elle a sans doute été enregistrée depuis une console admin." -ForegroundColor Gray
+            Write-Host "  Relance ce script une fois en tant qu'administrateur." -ForegroundColor Gray
+            Write-Host ""
+            exit 1
+        }
+    }
 }
 
 Register-ScheduledTask `
