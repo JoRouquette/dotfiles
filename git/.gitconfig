@@ -20,7 +20,7 @@
 ;  et sous PowerShell : . <repo dotfiles>\windows\git-worktree.ps1
 ;
 ;  IDENTITÉ : configurer dans <dossier voisin>/dotfiles-config/gitconfig.local
-;             ou ~/.gitconfig.local (voir README.md). Seuls les deux
+;             ou ~/.gitconfig.local (voir README.md). Seuls les
 ;             emplacements du bloc [include] en fin de fichier sont lus.
 ; ============================================================
 
@@ -214,11 +214,13 @@
 ;  Pour toi : utiliser dotfiles-config + ~/.gitconfig.local si besoin
 ; ============================================================
 ; Un include vers un fichier absent est ignoré sans erreur : on déclare les
-; deux emplacements possibles du repo dotfiles-config.
+; emplacements possibles du repo dotfiles-config, du plus ancien à l'actuel.
+; Si plusieurs existent, tous sont lus et le dernier (l'actuel) gagne.
 [include]
 	; Config privée versionnée (optionnel)
 	path = ~/.projects/dotfiles-config/gitconfig.local
 	path = ~/.projects/repos/personal/dotfiles-config/gitconfig.local
+	path = ~/.projects/Perso/Workspace/repos/dotfiles-config/gitconfig.local
 	; Config locale non versionnée (fallback/override)
 	path = ~/.gitconfig.local
 
