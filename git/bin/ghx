@@ -1,0 +1,165 @@
+#!/bin/sh
+# ghx <propriétaire> <arguments gh...>
+#   Lance gh avec le compte gh associé au propriétaire déclaré (mapping de
+#   git-credential-gh-multi), sans gh auth switch. Le jeton ne vit que dans
+#   l'environnement du processus gh enfant.
+#
+# Le compte vient TOUJOURS du propriétaire déclaré : ghx ne déduit rien. L'analyse
+# des arguments ne sert qu'à refuser, quand la commande contredit ce propriétaire :
+# -R/--repo, GH_REPO, URL github.com en argument, chemin repos|orgs|users/<o> d'un
+# gh api, --owner/--org, dépôt owner/repo de gh repo, ou une remote github.com du
+# dossier quand gh peut s'en servir. Un cas non détecté n'est jamais un mauvais
+# compte : seulement un refus qui manque.
+#   ghx owner pr list
+#   ghx owner -R owner/repo pr view 12
+#   ghx owner api orgs/owner/teams
+#
+# Refusés aussi : gh auth (sauf « auth status » et -a/--active), --show-token,
+# --hostname, tout hôte *.ghe.com (argument ou remote : gh y enverrait GH_TOKEN),
+# alias et extensions (utiliser gh directement).
+# Confort, pas frontière de sécurité : gh direct reste disponible.
+# Exception à CONTRIBUTING §2 (préfixe git-) : wrapper de gh, pas une commande git.
+
+here=$(dirname "$0")
+refuse() { echo "ghx: $*" >&2; exit 2; }
+
+case "$1" in
+    ''|-*) refuse "usage : ghx <propriétaire> <arguments gh...>" ;;
+esac
+owner=$1; shift
+lc() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+want=$(lc "$owner")
+
+# Commandes intégrées de gh : un alias ou une extension contournerait les gardes.
+builtins=" api attestation auth browse cache codespace gist gpg-key issue label org pr project release repo ruleset run search secret ssh-key status variable workflow "
+# Commandes où -o est la forme courte de --org (ailleurs, -o peut vouloir dire autre chose).
+org_short=" secret variable ruleset status codespace "
+# Commandes qui ne lisent pas la remote du dossier.
+no_remote=" api attestation auth codespace gist gpg-key org project search ssh-key status "
+
+# Propriétaire d'une URL github.com ; 1 : pas une URL ; 3 : autre hôte.
+# Hôte normalisé comme gh : casse, et tout *.github.com (www., ssh., api.) vaut github.com.
+owner_of_url() {
+    case "$1" in
+        *://*) rest=${1#*://}; authority=${rest%%/*}; path=${rest#"$authority"}; path=${path#/} ;;
+        *@*:*) authority=${1%%:*}; path=${1#*:} ;;
+        *) return 1 ;;
+    esac
+    host=$(lc "${authority##*@}"); host=${host%%:*}
+    case "$host" in *.github.com) host=github.com ;; esac
+    [ "$host" = github.com ] || return 3
+    case "$path" in repos/*) path=${path#repos/} ;; esac   # https://api.github.com/repos/<o>/...
+    [ -n "$path" ] || return 1
+    echo "${path%%/*}"
+}
+
+# Refuse si le propriétaire $1 (vu à l'endroit $2) contredit le propriétaire déclaré.
+expect() {
+    case "$1" in ''|'{'*|:*) return 0 ;; esac
+    [ "$(lc "$1")" = "$want" ] || refuse "$2 vise '$1', pas '$owner' : commande refusée."
+}
+
+# Valeur de -R ou de GH_REPO : [github.com/]owner/repo ou URL github.com.
+check_repo_arg() {
+    o=$(owner_of_url "$1"); rc=$?
+    [ $rc -eq 3 ] && refuse "dépôt '$1' refusé : github.com uniquement."
+    if [ $rc -ne 0 ]; then
+        case "$1" in
+            github.com/*/*) r=${1#github.com/}; o=${r%%/*} ;;
+            */*/*) refuse "dépôt '$1' refusé : github.com uniquement." ;;
+            */*) o=${1%%/*} ;;
+            *) refuse "dépôt '$1' invalide : owner/repo attendu." ;;
+        esac
+    fi
+    expect "$o" "$2"
+}
+
+repo_given=   # -R, --repo, GH_REPO ou dépôt de gh repo : gh n'utilise pas la remote
+placeholder=  # {owner} ou :owner dans un gh api : gh lit la remote
+[ -n "$GH_REPO" ] && { check_repo_arg "$GH_REPO" GH_REPO; repo_given=1; }
+
+cmd= sub= prev=
+for arg in "$@"; do
+    case "$(lc "$arg")" in
+        *ghe.com*|*github.localhost*) refuse "hôte *.ghe.com ou github.localhost refusé : github.com uniquement." ;;
+        --hostname|--hostname=*) refuse "--hostname refusé : github.com uniquement." ;;
+        --show-token|--show-token=*) refuse "affichage de jeton refusé." ;;
+    esac
+    case "$arg" in *'{owner}'*|*:owner*) placeholder=1 ;; esac
+    case "$prev" in
+        -R|--repo) check_repo_arg "$arg" "-R"; repo_given=1 ;;
+        --owner|--org) expect "$arg" "$prev" ;;
+        -o) case "$org_short" in *" $cmd "*) expect "$arg" "-o" ;; esac ;;
+    esac
+    case "$arg" in
+        --repo=*)  check_repo_arg "${arg#--repo=}" "--repo"; repo_given=1 ;;
+        -R?*)      check_repo_arg "${arg#-R}" "-R"; repo_given=1 ;;
+        --owner=*) expect "${arg#--owner=}" "--owner" ;;
+        --org=*)   expect "${arg#--org=}" "--org" ;;
+        -o?*)      case "$org_short" in *" $cmd "*) r=${arg#-o}; expect "${r#=}" "-o" ;; esac ;;
+        -*) ;;
+        *)
+            # URL entière (sans espace) vers github.com : son propriétaire doit concorder.
+            case "$arg" in
+                *[[:space:]]*) ;;
+                *://*|*@*:*) o=$(owner_of_url "$arg") && expect "$o" "l'URL '$arg'" ;;
+            esac
+            case "$arg" in
+                repos/*|/repos/*|orgs/*|/orgs/*|users/*|/users/*)
+                    [ "$cmd" = api ] && { r=${arg#/}; r=${r#*/}; expect "${r%%/*}" "le chemin '$arg'"; } ;;
+            esac
+            case "$prev" in -R|--repo) ;; *)
+                if [ -z "$cmd" ]; then cmd=$arg
+                elif [ -z "$sub" ]; then sub=$arg
+                elif [ "$cmd" = repo ]; then
+                    # Tout positionnel owner/repo de gh repo ; pour « repo list », un owner
+                    # nu qui ne suit pas une option (sinon c'est peut-être sa valeur).
+                    case "$arg" in
+                        *://*|*@*:*) repo_given=1 ;;
+                        */*) expect "${arg%%/*}" "le dépôt '$arg'"; repo_given=1 ;;
+                        *) [ "$sub" = list ] && case "$prev" in -*) ;; *) expect "$arg" "repo list" ;; esac ;;
+                    esac
+                fi ;;
+            esac ;;
+    esac
+    prev=$arg
+done
+
+case "$builtins" in *" $cmd "*) ;; *) refuse "'$cmd' : commande inconnue de ghx (alias ou extension ?), utiliser gh directement." ;; esac
+
+# gh auth : seul « auth status », éventuellement -a/--active.
+if [ "$cmd" = auth ]; then
+    [ "$sub" = status ] || refuse "'gh auth $sub' refusé (global à la machine ou affiche un jeton)."
+    seen=
+    for arg in "$@"; do
+        case "$arg" in
+            auth) [ -z "$seen" ] && seen=1 || refuse "argument 'auth' répété refusé." ;;
+            status|-a|--active) ;;
+            *) refuse "'auth status $arg' refusé (affichage de jeton possible)." ;;
+        esac
+    done
+fi
+
+# Remotes du dossier : aucune sur *.ghe.com ; et, quand gh peut s'en servir, toutes
+# les remotes github.com doivent appartenir au propriétaire déclaré (gh choisit entre
+# gh-resolved, upstream, github et origin selon des règles que ghx ne reproduit pas).
+remotes=$(git remote -v 2>/dev/null | awk '{ print $2 }' | sort -u)
+case "$(lc "$remotes")" in *ghe.com*|*github.localhost*) refuse "remote *.ghe.com ou github.localhost dans ce dossier : refusé." ;; esac
+uses_remote=1
+case "$no_remote" in *" $cmd "*) uses_remote= ;; esac
+[ "$cmd" = repo ] && case "$sub" in list|clone|create) uses_remote= ;; esac
+[ "$cmd" = api ] && [ -n "$placeholder" ] && uses_remote=1
+[ -n "$repo_given" ] && uses_remote=
+if [ -n "$uses_remote" ]; then
+    for url in $remotes; do
+        o=$(owner_of_url "$url") && [ "$(lc "$o")" != "$want" ] \
+            && refuse "remote '$url' du dossier vise '$o', pas '$owner' : préciser -R $owner/<dépôt>."
+    done
+fi
+
+# Le jeton ne doit viser que github.com : aucun hôte ni jeton d'entreprise hérité,
+# effacés avant même de lire le jeton.
+unset GH_HOST GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN GITHUB_TOKEN GHX_OWNER
+account=$("$here/git-credential-gh-multi" resolve "$owner") || exit 1
+token=$(gh auth token --hostname github.com --user "$account" 2>/dev/null) || { echo "ghx: aucun jeton gh pour '$account'." >&2; exit 1; }
+GH_TOKEN=$token exec gh "$@"
