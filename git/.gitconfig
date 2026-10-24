@@ -221,6 +221,7 @@
 	path = ~/.projects/dotfiles-config/gitconfig.local
 	path = ~/.projects/repos/personal/dotfiles-config/gitconfig.local
 	path = ~/.projects/Perso/Workspace/repos/dotfiles-config/gitconfig.local
+	path = ~/.projects/Perso/Workspace/repos/dotfiles-config/main/gitconfig.local
 	; Config locale non versionnée (fallback/override)
 	path = ~/.gitconfig.local
 
