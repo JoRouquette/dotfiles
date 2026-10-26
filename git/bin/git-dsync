@@ -57,15 +57,20 @@ sync_one_repo() {
     repo_name=$(basename "$repo_dir")
 
     # Sanity check
-    if [ ! -d "$repo_dir/.git" ]; then
+    if [ ! -e "$repo_dir/.git" ]; then
         $QUIET || warn "[$repo_name] Pas un repo git : $repo_dir (skip)"
         return 0
     fi
 
     cd "$repo_dir"
 
+    # git-dir réel, pas "$repo_dir/.git" : sous worktree .git est un fichier
+    # pointeur, pas un dossier (lock et détection rebase y échoueraient sinon).
+    local git_dir
+    git_dir="$(git -C "$repo_dir" rev-parse --absolute-git-dir)"
+
     # Lock (évite les exécutions concurrentes)
-    local lock_file="$repo_dir/.git/dsync.lock"
+    local lock_file="$git_dir/dsync.lock"
     if command -v flock >/dev/null 2>&1; then
         exec 9>"$lock_file"
         if ! flock -n 9; then
@@ -81,7 +86,7 @@ sync_one_repo() {
     fi
 
     # Refuse de tourner si un merge/rebase est en cours
-    if [ -d .git/rebase-apply ] || [ -d .git/rebase-merge ] || [ -f .git/MERGE_HEAD ]; then
+    if [ -d "$git_dir/rebase-apply" ] || [ -d "$git_dir/rebase-merge" ] || [ -f "$git_dir/MERGE_HEAD" ]; then
         warn "[$repo_name] Rebase/merge en cours — sync reporté."
         return 0
     fi
@@ -168,7 +173,7 @@ resolve_default_repos() {
         # versionné, readlink absent…). Les marqueurs testés n'existent qu'à la
         # racine du repo. Journalisé même en --quiet, pour qu'une tâche
         # planifiée ne s'arrête pas sans trace.
-        if [ -z "$script_repo" ] || [ ! -d "$script_repo/.git" ] \
+        if [ -z "$script_repo" ] || [ ! -e "$script_repo/.git" ] \
             || [ ! -f "$script_repo/install.sh" ] || [ ! -f "$script_repo/bash/bashrc-extra.sh" ]; then
             printf '[%s] ERROR: repo dotfiles introuvable depuis %s ; définir DOTFILES_DIR ou utiliser --repo.\n' \
                 "$(ts)" "${BASH_SOURCE[0]}" >> "$LOG_FILE"
@@ -179,7 +184,7 @@ resolve_default_repos() {
     fi
 
     config_repo="${DOTFILES_CONFIG_DIR:-$(dirname "$default_repo")/dotfiles-config}"
-    if [ -d "$config_repo/.git" ]; then
+    if [ -e "$config_repo/.git" ]; then
         DEFAULT_REPOS="$default_repo|$config_repo"
     else
         # dotfiles-config est optionnel : son absence n'est pas journalisée.
